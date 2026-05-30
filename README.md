@@ -9,6 +9,7 @@ The project supports:
 - FastAPI web UI
 - simple-path cycle handling
 - max-depth cycle handling
+- multi-level CDFD process decomposition
 - text, JSON, CSV, and Markdown outputs
 
 ## Install
@@ -42,6 +43,18 @@ Generate bounded cyclic paths from CSV:
 
 ```bash
 cdfd-paths examples/loop.csv --start A --end C --strategy max-depth --max-depth 4
+```
+
+Generate expanded paths from a multi-level CDFD project:
+
+```bash
+cdfd-paths examples/multilevel.json
+```
+
+Keep only the top-level CDFD path:
+
+```bash
+cdfd-paths examples/multilevel.json --no-expand
 ```
 
 ## Web UI
@@ -94,3 +107,35 @@ B,D,ok
 
 - `simple`: a path may not visit the same node twice.
 - `max-depth`: a path may revisit nodes, but the number of traversed edges is capped by `--max-depth`.
+
+## Multi-Level CDFD
+
+JSON and YAML can also describe a full CDFD project:
+
+```json
+{
+  "module": {
+    "name": "ExampleModule",
+    "behav": "Top"
+  },
+  "processes": [
+    { "id": "A1", "pre": "s1 == 1", "post": "x2 is derived from x1", "decom": "A1_detail" }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "A1",
+      "ends": ["A2"],
+      "nodes": ["A1", "A2"],
+      "edges": [{ "from": "A1", "to": "A2" }]
+    },
+    "A1_detail": {
+      "start": "A11",
+      "ends": ["A12"],
+      "nodes": ["A11", "A12"],
+      "edges": [{ "from": "A11", "to": "A12" }]
+    }
+  }
+}
+```
+
+`module.behav` selects the top-level CDFD. Each `process.decom` points to another graph. By default, the generator recursively replaces decomposed processes with paths from their child CDFD.

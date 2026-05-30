@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from cdfd.models import CDFDGraph, Edge, Node
+from cdfd.models import CDFDGraph, CDFDProject, Edge, ModuleInfo, Node, ProcessSpec
 
 
 class ParseError(ValueError):
@@ -54,6 +54,175 @@ def parse_cdfd(
         return _graph_from_csv(content, start=start, ends=ends)
 
     raise ParseError(f"Unsupported input format: {input_format}")
+
+
+def parse_project(
+    content: str,
+    input_format: str,
+    *,
+    start: str | None = None,
+    ends: str | list[str] | None = None,
+) -> CDFDProject:
+    fmt = input_format.lower()
+    if fmt == "yml":
+        fmt = "yaml"
+
+    if fmt == "csv":
+        graph = _graph_from_csv(content, start=start, ends=ends)
+        return CDFDProject(graphs={"main": graph}, entry_graph="main")
+
+    if fmt == "json":
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ParseError(f"Invalid JSON: {exc}") from exc
+        return _project_from_mapping(data, start_override=start, ends_override=ends)
+
+    if fmt == "yaml":
+        try:
+            data = yaml.safe_load(content)
+        except yaml.YAMLError as exc:
+            raise ParseError(f"Invalid YAML: {exc}") from exc
+        return _project_from_mapping(data, start_override=start, ends_override=ends)
+
+    raise ParseError(f"Unsupported input format: {input_format}")
+
+
+def _project_from_mapping(
+    data: Any,
+    *,
+    start_override: str | None,
+    ends_override: str | list[str] | None,
+) -> CDFDProject:
+    if not isinstance(data, dict):
+        raise ParseError("Top-level CDFD project input must be an object.")
+
+    raw_graphs = data.get("graphs", data.get("cdfds"))
+    has_project_shape = raw_graphs is not None or "module" in data or "processes" in data
+
+    if not has_project_shape:
+        graph = _graph_from_mapping(data, start_override=start_override, ends_override=ends_override)
+        return CDFDProject(graphs={"main": graph}, entry_graph="main", metadata={})
+
+    module = _parse_module(data.get("module"))
+    processes = _parse_processes(data.get("processes", {}))
+    graphs = _parse_graphs(raw_graphs)
+    entry_graph = _select_entry_graph(data, module, graphs)
+    metadata = _coerce_metadata(data.get("metadata"))
+
+    for process in processes.values():
+        if process.decom and process.decom not in graphs:
+            raise ParseError(f"Process '{process.id}' decomposes to missing graph '{process.decom}'.")
+
+    return CDFDProject(
+        graphs=graphs,
+        entry_graph=entry_graph,
+        module=module,
+        processes=processes,
+        metadata=metadata,
+    )
+
+
+def _parse_module(raw_module: Any) -> ModuleInfo | None:
+    if raw_module is None:
+        return None
+    if not isinstance(raw_module, dict):
+        raise ParseError("'module' must be an object.")
+
+    known = {"name", "const", "type", "types", "var", "behav", "metadata"}
+    metadata = _metadata_with_unknown_fields(raw_module, known)
+    return ModuleInfo(
+        name=_optional_str(raw_module.get("name")),
+        const=_coerce_any_list(raw_module.get("const")),
+        types=_coerce_any_list(raw_module.get("type", raw_module.get("types"))),
+        var=_coerce_any_list(raw_module.get("var")),
+        behav=_optional_str(raw_module.get("behav")),
+        metadata=metadata,
+    )
+
+
+def _parse_processes(raw_processes: Any) -> dict[str, ProcessSpec]:
+    if raw_processes in (None, ""):
+        return {}
+
+    if isinstance(raw_processes, dict):
+        iterable = []
+        for process_id, process_value in raw_processes.items():
+            if isinstance(process_value, dict):
+                iterable.append({"id": process_id, **process_value})
+            else:
+                iterable.append({"id": process_id, "label": str(process_value)})
+    elif isinstance(raw_processes, list):
+        iterable = raw_processes
+    else:
+        raise ParseError("'processes' must be a list or object.")
+
+    processes: dict[str, ProcessSpec] = {}
+    for raw_process in iterable:
+        if isinstance(raw_process, str):
+            process = ProcessSpec(id=raw_process)
+        elif isinstance(raw_process, dict):
+            process_id = raw_process.get("id")
+            if not process_id:
+                raise ParseError("Each process object must contain an 'id'.")
+            known = {
+                "id",
+                "label",
+                "inputs",
+                "outputs",
+                "pre",
+                "post",
+                "decom",
+                "decomposition",
+                "metadata",
+            }
+            metadata = _metadata_with_unknown_fields(raw_process, known)
+            process = ProcessSpec(
+                id=str(process_id),
+                label=_optional_str(raw_process.get("label")),
+                inputs=_coerce_id_list(raw_process.get("inputs"), "inputs"),
+                outputs=_coerce_id_list(raw_process.get("outputs"), "outputs"),
+                pre=_optional_str(raw_process.get("pre")),
+                post=_optional_str(raw_process.get("post")),
+                decom=_optional_str(raw_process.get("decom", raw_process.get("decomposition"))),
+                metadata=metadata,
+            )
+        else:
+            raise ParseError("Each process must be either a string or an object.")
+
+        if process.id in processes:
+            raise ParseError(f"Duplicate process id: {process.id}")
+        processes[process.id] = process
+
+    return processes
+
+
+def _parse_graphs(raw_graphs: Any) -> dict[str, CDFDGraph]:
+    if not isinstance(raw_graphs, dict) or not raw_graphs:
+        raise ParseError("Project input must contain a non-empty 'graphs' object.")
+
+    graphs: dict[str, CDFDGraph] = {}
+    for graph_name, raw_graph in raw_graphs.items():
+        if not isinstance(raw_graph, dict):
+            raise ParseError(f"Graph '{graph_name}' must be an object.")
+        graph = _graph_from_mapping(raw_graph, start_override=None, ends_override=None)
+        graphs[str(graph_name)] = graph
+    return graphs
+
+
+def _select_entry_graph(
+    data: dict[str, Any],
+    module: ModuleInfo | None,
+    graphs: dict[str, CDFDGraph],
+) -> str:
+    entry_graph = _optional_str(data.get("entry_graph")) or _optional_str(data.get("behav"))
+    if not entry_graph and module and module.behav:
+        entry_graph = module.behav
+    if not entry_graph:
+        entry_graph = next(iter(graphs))
+    if entry_graph not in graphs:
+        raise ParseError(f"Entry graph '{entry_graph}' is not defined in graphs.")
+    return entry_graph
 
 
 def _graph_from_mapping(
@@ -273,6 +442,14 @@ def _coerce_id_list(value: Any, field_name: str) -> list[str]:
     if isinstance(value, (list, tuple, set)):
         return [str(part).strip() for part in value if str(part).strip()]
     raise ParseError(f"'{field_name}' must be a string or list.")
+
+
+def _coerce_any_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
 
 
 def _coerce_metadata(value: Any) -> dict[str, Any]:

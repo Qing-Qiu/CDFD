@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Node(BaseModel):
@@ -37,6 +37,39 @@ class PathResult(BaseModel):
     nodes: list[str]
     edges: list[str]
     conditions: list[str] = Field(default_factory=list)
+
+
+class ModuleInfo(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str | None = None
+    const: list[Any] = Field(default_factory=list)
+    types: list[Any] = Field(default_factory=list, alias="type")
+    var: list[Any] = Field(default_factory=list)
+    behav: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProcessSpec(BaseModel):
+    id: str
+    label: str | None = None
+    inputs: list[str] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
+    pre: str | None = None
+    post: str | None = None
+    decom: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CDFDProject(BaseModel):
+    graphs: dict[str, CDFDGraph]
+    entry_graph: str
+    module: ModuleInfo | None = None
+    processes: dict[str, ProcessSpec] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def entry(self) -> CDFDGraph:
+        return self.graphs[self.entry_graph]
 
 
 def model_dump(value: BaseModel) -> dict[str, Any]:

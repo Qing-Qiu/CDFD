@@ -1,0 +1,71 @@
+{
+  "module": {
+    "name": "ExampleModule",
+    "const": ["s1 = 1", "s2 = 2"],
+    "type": ["int", "real"],
+    "var": ["x1", "x2", "x3", "x4", "x5", "x6", "x7"],
+    "behav": "Top"
+  },
+  "processes": [
+    {
+      "id": "A1",
+      "pre": "s1 == 1",
+      "post": "x2 and x3 are derived from x1",
+      "decom": "A1_detail"
+    },
+    {
+      "id": "A3",
+      "post": "x5 or x7 is derived from x3",
+      "decom": "A3_detail"
+    },
+    {
+      "id": "A33",
+      "pre": "s2 == 2",
+      "post": "z3 is derived from z2",
+      "decom": "A33_detail"
+    }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "A1",
+      "ends": ["A4"],
+      "nodes": [
+        { "id": "A1", "type": "process" },
+        { "id": "A2", "type": "process" },
+        { "id": "A3", "type": "process" },
+        { "id": "A4", "type": "process" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "A1", "to": "A2", "condition": "x2" },
+        { "id": "e2", "from": "A1", "to": "A3", "condition": "x3" },
+        { "id": "e3", "from": "A2", "to": "A4", "condition": "x4" },
+        { "id": "e4", "from": "A3", "to": "A4", "condition": "x5" }
+      ]
+    },
+    "A1_detail": {
+      "start": "A11",
+      "ends": ["A13"],
+      "nodes": ["A11", "A12", "A13"],
+      "edges": [
+        { "id": "e1", "from": "A11", "to": "A13", "condition": "y2" }
+      ]
+    },
+    "A3_detail": {
+      "start": "A31",
+      "ends": ["A32", "A33"],
+      "nodes": ["A31", "A32", "A33"],
+      "edges": [
+        { "id": "e1", "from": "A31", "to": "A32", "condition": "z1" },
+        { "id": "e2", "from": "A31", "to": "A33", "condition": "z2" }
+      ]
+    },
+    "A33_detail": {
+      "start": "A331",
+      "ends": ["A332"],
+      "nodes": ["A331", "A332"],
+      "edges": [
+        { "id": "e1", "from": "A331", "to": "A332", "condition": "d2" }
+      ]
+    }
+  }
+}

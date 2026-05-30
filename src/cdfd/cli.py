@@ -5,8 +5,9 @@ import sys
 from pathlib import Path
 
 from cdfd.exporters import export_paths
-from cdfd.parsers import ParseError, infer_format, parse_cdfd
-from cdfd.path_finder import PathFindingOptions, PathLimitExceeded, detect_cycles, find_paths
+from cdfd.multilevel import detect_project_cycles, find_project_paths
+from cdfd.parsers import ParseError, infer_format, parse_project
+from cdfd.path_finder import PathFindingOptions, PathLimitExceeded
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -17,15 +18,16 @@ def main(argv: list[str] | None = None) -> int:
         input_path = Path(args.input)
         input_format = infer_format(input_path) if args.format == "auto" else args.format
         content = input_path.read_text(encoding="utf-8")
-        graph = parse_cdfd(content, input_format, start=args.start, ends=args.ends)
-        cycles = detect_cycles(graph)
-        paths = find_paths(
-            graph,
+        project = parse_project(content, input_format, start=args.start, ends=args.ends)
+        cycles = detect_project_cycles(project)
+        paths = find_project_paths(
+            project,
             PathFindingOptions(
                 strategy=args.strategy,
                 max_depth=args.max_depth,
                 max_paths=args.max_paths,
             ),
+            expand=not args.no_expand,
         )
         if cycles:
             _print_cycles(cycles)
@@ -61,6 +63,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-depth", type=int, default=20, help="Maximum edge depth for max-depth strategy.")
     parser.add_argument("--max-paths", type=int, default=10000, help="Safety limit for generated paths.")
     parser.add_argument(
+        "--no-expand",
+        action="store_true",
+        help="For project inputs, keep decomposable processes as top-level nodes.",
+    )
+    parser.add_argument(
         "--output-format",
         choices=["text", "json", "csv", "markdown"],
         default="text",
@@ -69,10 +76,12 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_cycles(cycles: list[list[str]]) -> None:
-    print(f"Warning: {len(cycles)} cycle(s) detected.", file=sys.stderr)
-    for cycle in cycles:
-        print(f"  {' -> '.join(cycle)}", file=sys.stderr)
+def _print_cycles(cycles: dict[str, list[list[str]]]) -> None:
+    total = sum(len(graph_cycles) for graph_cycles in cycles.values())
+    print(f"Warning: {total} cycle(s) detected.", file=sys.stderr)
+    for graph_name, graph_cycles in cycles.items():
+        for cycle in graph_cycles:
+            print(f"  {graph_name}: {' -> '.join(cycle)}", file=sys.stderr)
 
 
 if __name__ == "__main__":

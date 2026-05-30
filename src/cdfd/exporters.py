@@ -7,7 +7,7 @@ from collections import defaultdict, deque
 from io import StringIO
 from typing import Iterable
 
-from cdfd.models import CDFDGraph, PathResult, model_dump
+from cdfd.models import CDFDGraph, CDFDProject, PathResult, model_dump
 
 
 def export_paths(paths: list[PathResult], output_format: str) -> str:
@@ -33,7 +33,22 @@ def graph_to_dict(graph: CDFDGraph) -> dict[str, object]:
     }
 
 
-def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None) -> str:
+def project_to_dict(project: CDFDProject) -> dict[str, object]:
+    graphs = {name: graph_to_dict(graph) for name, graph in project.graphs.items()}
+    return {
+        "entry_graph": project.entry_graph,
+        "module": model_dump(project.module) if project.module else None,
+        "processes": [model_dump(process) for process in project.processes.values()],
+        "graphs": graphs,
+        "graph_count": len(project.graphs),
+        "process_count": len(project.processes),
+        "total_nodes": sum(len(graph.nodes) for graph in project.graphs.values()),
+        "total_edges": sum(len(graph.edges) for graph in project.graphs.values()),
+        "metadata": project.metadata,
+    }
+
+
+def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_name: str | None = None) -> str:
     levels = _assign_levels(graph)
     ordered_levels: dict[int, list[str]] = defaultdict(list)
     for node_id, level in levels.items():
@@ -49,7 +64,7 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None) -> str:
 
     width = max((x for x, _ in positions.values()), default=80) + 180
     height = max((y for _, y in positions.values()), default=70) + 100
-    highlighted_edges = set(paths[0].edges) if paths else set()
+    highlighted_edges = _highlighted_edges(paths[0].edges if paths else [], graph_name)
 
     parts = [
         f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="CDFD graph" xmlns="http://www.w3.org/2000/svg">',
@@ -173,3 +188,14 @@ def _node_fill(graph: CDFDGraph, node_id: str, node_type: str) -> str:
     if node_type == "data":
         return "#fef9c3"
     return "#f8fafc"
+
+
+def _highlighted_edges(edge_ids: Iterable[str], graph_name: str | None) -> set[str]:
+    highlighted: set[str] = set()
+    prefix = f"{graph_name}:" if graph_name else None
+    for edge_id in edge_ids:
+        if prefix and edge_id.startswith(prefix):
+            highlighted.add(edge_id[len(prefix) :])
+        elif ":" not in edge_id:
+            highlighted.add(edge_id)
+    return highlighted

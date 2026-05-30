@@ -40,3 +40,43 @@ def test_web_index_page():
 
     assert response.status_code == 200
     assert "CDFD Path Generator" in response.text
+
+
+def test_web_analyze_multilevel_project():
+    from fastapi.testclient import TestClient
+
+    from cdfd.web import app
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/analyze",
+        json={
+            "input_format": "json",
+            "content": """
+            {
+              "module": {"behav": "Top"},
+              "processes": [{"id": "A1", "decom": "A1_detail"}],
+              "graphs": {
+                "Top": {
+                  "start": "A1",
+                  "ends": ["A2"],
+                  "nodes": ["A1", "A2"],
+                  "edges": [{"from": "A1", "to": "A2"}]
+                },
+                "A1_detail": {
+                  "start": "A11",
+                  "ends": ["A12"],
+                  "nodes": ["A11", "A12"],
+                  "edges": [{"from": "A11", "to": "A12"}]
+                }
+              }
+            }
+            """,
+            "expand": True,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["project"]["graph_count"] == 2
+    assert data["paths"][0]["nodes"] == ["A11", "A12", "A2"]

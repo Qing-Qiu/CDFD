@@ -7,9 +7,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from cdfd.exporters import export_paths, graph_to_dict, render_svg
-from cdfd.parsers import ParseError, parse_cdfd
-from cdfd.path_finder import PathFindingOptions, PathLimitExceeded, detect_cycles, find_paths
+from cdfd.exporters import export_paths, graph_to_dict, project_to_dict, render_svg
+from cdfd.multilevel import detect_project_cycles, find_project_paths
+from cdfd.parsers import ParseError, parse_project
+from cdfd.path_finder import PathFindingOptions, PathLimitExceeded
 
 
 class AnalyzeRequest(BaseModel):
@@ -20,6 +21,7 @@ class AnalyzeRequest(BaseModel):
     strategy: str = "simple"
     max_depth: int = 20
     max_paths: int = 10000
+    expand: bool = True
 
 
 app = FastAPI(title="CDFD Path Generator")
@@ -34,30 +36,33 @@ def index(request: Request) -> HTMLResponse:
 @app.post("/api/analyze")
 def analyze(payload: AnalyzeRequest) -> dict[str, object]:
     try:
-        graph = parse_cdfd(
+        project = parse_project(
             payload.content,
             payload.input_format,
             start=payload.start,
             ends=payload.ends,
         )
-        cycles = detect_cycles(graph)
-        paths = find_paths(
-            graph,
+        graph = project.entry()
+        cycles = detect_project_cycles(project)
+        paths = find_project_paths(
+            project,
             PathFindingOptions(
                 strategy=payload.strategy,
                 max_depth=payload.max_depth,
                 max_paths=payload.max_paths,
             ),
+            expand=payload.expand,
         )
     except (ParseError, ValueError, PathLimitExceeded) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {
         "graph": graph_to_dict(graph),
+        "project": project_to_dict(project),
         "cycles": cycles,
         "paths": [path.model_dump() if hasattr(path, "model_dump") else path.dict() for path in paths],
         "text": export_paths(paths, "text"),
-        "svg": render_svg(graph, paths),
+        "svg": render_svg(graph, paths, graph_name=project.entry_graph),
     }
 
 

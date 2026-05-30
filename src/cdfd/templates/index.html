@@ -134,7 +134,7 @@
 
     .summary {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 12px;
       margin-bottom: 14px;
     }
@@ -223,6 +223,21 @@
       border-color: #fed7aa;
     }
 
+    .check-field {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .check-field input {
+      width: 18px;
+      height: 18px;
+    }
+
     .empty {
       color: var(--muted);
       padding: 24px;
@@ -292,6 +307,11 @@
           </div>
         </div>
 
+        <label class="check-field" for="expandProcesses">
+          <input id="expandProcesses" type="checkbox" checked>
+          Expand decomposed processes
+        </label>
+
         <div class="field">
           <label for="content">CDFD content</label>
           <textarea id="content" spellcheck="false">{
@@ -316,6 +336,7 @@
       <div class="panel-body">
         <div id="message" class="message">Ready.</div>
         <div class="summary">
+          <div class="metric"><span>Graphs</span><strong id="graphCount">0</strong></div>
           <div class="metric"><span>Nodes</span><strong id="nodeCount">0</strong></div>
           <div class="metric"><span>Edges</span><strong id="edgeCount">0</strong></div>
           <div class="metric"><span>Paths</span><strong id="pathCount">0</strong></div>
@@ -342,6 +363,7 @@
     const visual = document.getElementById("visual");
     const nodeCount = document.getElementById("nodeCount");
     const edgeCount = document.getElementById("edgeCount");
+    const graphCount = document.getElementById("graphCount");
     const pathCount = document.getElementById("pathCount");
 
     fileInput.addEventListener("change", async () => {
@@ -366,7 +388,8 @@
         ends: document.getElementById("ends").value || null,
         strategy: document.getElementById("strategy").value,
         max_depth: Number(document.getElementById("maxDepth").value || 20),
-        max_paths: Number(document.getElementById("maxPaths").value || 10000)
+        max_paths: Number(document.getElementById("maxPaths").value || 10000),
+        expand: document.getElementById("expandProcesses").checked
       };
 
       try {
@@ -381,20 +404,23 @@
           throw new Error(data.detail || "Request failed.");
         }
 
-        nodeCount.textContent = data.graph.nodes.length;
-        edgeCount.textContent = data.graph.edges.length;
+        graphCount.textContent = data.project.graph_count;
+        nodeCount.textContent = data.project.total_nodes;
+        edgeCount.textContent = data.project.total_edges;
         pathCount.textContent = data.paths.length;
         renderPaths(data.paths);
         visual.innerHTML = data.svg;
 
-        if (data.cycles.length) {
-          setMessage(`${data.cycles.length} cycle(s) detected. Strategy handled them successfully.`, "warn");
+        const cycleCount = Object.values(data.cycles).reduce((total, graphCycles) => total + graphCycles.length, 0);
+        if (cycleCount) {
+          setMessage(`${cycleCount} cycle(s) detected. Strategy handled them successfully.`, "warn");
         } else {
           setMessage("Paths generated successfully.", "");
         }
       } catch (error) {
         nodeCount.textContent = "0";
         edgeCount.textContent = "0";
+        graphCount.textContent = "0";
         pathCount.textContent = "0";
         paths.innerHTML = '<li class="empty">No paths.</li>';
         visual.innerHTML = '<div class="empty">No graph.</div>';
