@@ -1,0 +1,37 @@
+start: A
+ends:
+  - E
+nodes:
+  - id: A
+    type: start
+    label: Start
+  - id: B
+    type: decision
+    label: Check
+  - id: C
+    type: process
+    label: Accept
+  - id: D
+    type: process
+    label: Reject
+  - id: E
+    type: end
+    label: End
+edges:
+  - id: e1
+    from: A
+    to: B
+  - id: e2
+    from: B
+    to: C
+    condition: "yes"
+  - id: e3
+    from: B
+    to: D
+    condition: "no"
+  - id: e4
+    from: C
+    to: E
+  - id: e5
+    from: D
+    to: E

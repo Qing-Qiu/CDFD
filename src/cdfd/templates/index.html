@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CDFD Path Generator</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #172026;
+      --muted: #64717b;
+      --line: #d9e0e6;
+      --accent: #2f6f73;
+      --accent-dark: #24565a;
+      --warn: #b45309;
+      --error: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+      gap: 18px;
+      padding: 18px;
+    }
+
+    section {
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .panel-heading {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      width: 100%;
+      font: inherit;
+    }
+
+    input,
+    select,
+    textarea {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 11px;
+      background: #ffffff;
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 310px;
+      resize: vertical;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #ffffff;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    button:hover {
+      background: var(--accent-dark);
+    }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfd;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 24px;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .path-list {
+      max-height: 510px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      margin: 0;
+      list-style-position: inside;
+    }
+
+    .path-list li {
+      padding: 9px 8px;
+      border-bottom: 1px solid var(--line);
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .path-list li:last-child {
+      border-bottom: 0;
+    }
+
+    .visual {
+      min-height: 360px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 12px;
+    }
+
+    .visual svg {
+      width: 100%;
+      min-width: 520px;
+      height: auto;
+    }
+
+    .message {
+      margin-bottom: 14px;
+      border-radius: 8px;
+      padding: 11px 12px;
+      color: #102a43;
+      background: #edf7f7;
+      border: 1px solid #b8dedc;
+    }
+
+    .message.error {
+      color: var(--error);
+      background: #fff4f2;
+      border-color: #ffcdc7;
+    }
+
+    .message.warn {
+      color: var(--warn);
+      background: #fff7ed;
+      border-color: #fed7aa;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 24px;
+      text-align: center;
+    }
+
+    @media (max-width: 980px) {
+      main,
+      .result-grid,
+      .summary {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CDFD Path Generator</h1>
+  </header>
+
+  <main>
+    <section>
+      <div class="panel-heading">Input</div>
+      <div class="panel-body">
+        <div class="field">
+          <label for="fileInput">File</label>
+          <input id="fileInput" type="file" accept=".json,.yaml,.yml,.csv">
+        </div>
+
+        <div class="grid-two">
+          <div class="field">
+            <label for="inputFormat">Format</label>
+            <select id="inputFormat">
+              <option value="json">JSON</option>
+              <option value="yaml">YAML</option>
+              <option value="csv">CSV</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="strategy">Cycle Strategy</label>
+            <select id="strategy">
+              <option value="simple">Simple paths</option>
+              <option value="max-depth">Max depth</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-two">
+          <div class="field">
+            <label for="start">Start override</label>
+            <input id="start" placeholder="Required for CSV">
+          </div>
+          <div class="field">
+            <label for="ends">End nodes</label>
+            <input id="ends" placeholder="D or D,E">
+          </div>
+        </div>
+
+        <div class="grid-two">
+          <div class="field">
+            <label for="maxDepth">Max depth</label>
+            <input id="maxDepth" type="number" min="1" value="20">
+          </div>
+          <div class="field">
+            <label for="maxPaths">Max paths</label>
+            <input id="maxPaths" type="number" min="1" value="10000">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="content">CDFD content</label>
+          <textarea id="content" spellcheck="false">{
+  "start": "A",
+  "ends": ["D"],
+  "nodes": ["A", "B", "C", "D"],
+  "edges": [
+    { "from": "A", "to": "B" },
+    { "from": "A", "to": "C" },
+    { "from": "B", "to": "D", "condition": "yes" },
+    { "from": "C", "to": "D", "condition": "no" }
+  ]
+}</textarea>
+        </div>
+
+        <button id="runButton" type="button">Generate Paths</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="panel-heading">Results</div>
+      <div class="panel-body">
+        <div id="message" class="message">Ready.</div>
+        <div class="summary">
+          <div class="metric"><span>Nodes</span><strong id="nodeCount">0</strong></div>
+          <div class="metric"><span>Edges</span><strong id="edgeCount">0</strong></div>
+          <div class="metric"><span>Paths</span><strong id="pathCount">0</strong></div>
+        </div>
+        <div class="result-grid">
+          <ol id="paths" class="path-list">
+            <li class="empty">Run the generator to see paths.</li>
+          </ol>
+          <div id="visual" class="visual">
+            <div class="empty">Graph visualization will appear here.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const inputFormat = document.getElementById("inputFormat");
+    const content = document.getElementById("content");
+    const runButton = document.getElementById("runButton");
+    const message = document.getElementById("message");
+    const paths = document.getElementById("paths");
+    const visual = document.getElementById("visual");
+    const nodeCount = document.getElementById("nodeCount");
+    const edgeCount = document.getElementById("edgeCount");
+    const pathCount = document.getElementById("pathCount");
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      content.value = await file.text();
+      const name = file.name.toLowerCase();
+      if (name.endsWith(".yaml") || name.endsWith(".yml")) inputFormat.value = "yaml";
+      else if (name.endsWith(".csv")) inputFormat.value = "csv";
+      else inputFormat.value = "json";
+    });
+
+    runButton.addEventListener("click", async () => {
+      setMessage("Generating paths.", "");
+      paths.innerHTML = "";
+      visual.innerHTML = '<div class="empty">Working...</div>';
+
+      const payload = {
+        content: content.value,
+        input_format: inputFormat.value,
+        start: document.getElementById("start").value || null,
+        ends: document.getElementById("ends").value || null,
+        strategy: document.getElementById("strategy").value,
+        max_depth: Number(document.getElementById("maxDepth").value || 20),
+        max_paths: Number(document.getElementById("maxPaths").value || 10000)
+      };
+
+      try {
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Request failed.");
+        }
+
+        nodeCount.textContent = data.graph.nodes.length;
+        edgeCount.textContent = data.graph.edges.length;
+        pathCount.textContent = data.paths.length;
+        renderPaths(data.paths);
+        visual.innerHTML = data.svg;
+
+        if (data.cycles.length) {
+          setMessage(`${data.cycles.length} cycle(s) detected. Strategy handled them successfully.`, "warn");
+        } else {
+          setMessage("Paths generated successfully.", "");
+        }
+      } catch (error) {
+        nodeCount.textContent = "0";
+        edgeCount.textContent = "0";
+        pathCount.textContent = "0";
+        paths.innerHTML = '<li class="empty">No paths.</li>';
+        visual.innerHTML = '<div class="empty">No graph.</div>';
+        setMessage(error.message, "error");
+      }
+    });
+
+    function renderPaths(items) {
+      paths.innerHTML = "";
+      if (!items.length) {
+        paths.innerHTML = '<li class="empty">No paths found.</li>';
+        return;
+      }
+      for (const item of items) {
+        const li = document.createElement("li");
+        li.textContent = item.nodes.join(" -> ");
+        if (item.conditions.length) {
+          li.textContent += ` | ${item.conditions.join(", ")}`;
+        }
+        paths.appendChild(li);
+      }
+    }
+
+    function setMessage(text, type) {
+      message.textContent = text;
+      message.className = type ? `message ${type}` : "message";
+    }
+  </script>
+</body>
+</html>
