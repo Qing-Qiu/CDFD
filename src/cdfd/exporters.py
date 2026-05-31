@@ -9,6 +9,14 @@ from typing import Iterable
 
 from cdfd.models import CDFDGraph, CDFDProject, PathResult, model_dump
 
+NODE_WIDTH = 150
+NODE_HEIGHT = 48
+X_GAP = 220
+Y_GAP = 125
+LEFT_PAD = 80
+TOP_PAD = 120
+CONTROL_GAP = 78
+
 
 def export_paths(paths: list[PathResult], output_format: str) -> str:
     fmt = output_format.lower()
@@ -49,21 +57,10 @@ def project_to_dict(project: CDFDProject) -> dict[str, object]:
 
 
 def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_name: str | None = None) -> str:
-    levels = _assign_levels(graph)
-    ordered_levels: dict[int, list[str]] = defaultdict(list)
-    for node_id, level in levels.items():
-        ordered_levels[level].append(node_id)
+    positions = _layout_positions(graph)
 
-    for level_nodes in ordered_levels.values():
-        level_nodes.sort()
-
-    positions: dict[str, tuple[int, int]] = {}
-    for level, node_ids in sorted(ordered_levels.items()):
-        for row, node_id in enumerate(node_ids):
-            positions[node_id] = (80 + level * 220, 70 + row * 110)
-
-    width = max((x for x, _ in positions.values()), default=80) + 180
-    height = max((y for _, y in positions.values()), default=70) + 100
+    width = max((x for x, _ in positions.values()), default=LEFT_PAD) + NODE_WIDTH + LEFT_PAD
+    height = max((y for _, y in positions.values()), default=TOP_PAD) + NODE_HEIGHT + TOP_PAD
     highlighted_edges = _highlighted_edges(paths[0].edges if paths else [], graph_name)
 
     parts = [
@@ -83,19 +80,25 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
             continue
         sx, sy = positions[edge.source]
         tx, ty = positions[edge.target]
-        x1, y1 = sx + 150, sy + 24
-        x2, y2 = tx, ty + 24
         label = _edge_label(edge)
         color = "#b45309" if edge.id in highlighted_edges else "#4b5563"
         marker = "arrow-highlight" if edge.id in highlighted_edges else "arrow"
         stroke_width = "3" if edge.id in highlighted_edges else "2"
         dash = ' stroke-dasharray="6 5"' if edge.kind == "control" else ""
-        if x2 <= x1:
-            mid_y = min(y1, y2) - 34
-            path_d = f"M{x1},{y1} C{x1 + 50},{mid_y} {x2 - 50},{mid_y} {x2},{y2}"
+        if edge.kind == "control":
+            x1, y1 = sx + NODE_WIDTH / 2, sy + NODE_HEIGHT
+            x2, y2 = tx + NODE_WIDTH / 2, ty
+            control_y = (y1 + y2) / 2
+            path_d = f"M{x1},{y1} C{x1},{control_y} {x2},{control_y} {x2},{y2}"
         else:
-            mid_x = (x1 + x2) // 2
-            path_d = f"M{x1},{y1} C{mid_x},{y1} {mid_x},{y2} {x2},{y2}"
+            x1, y1 = sx + NODE_WIDTH, sy + NODE_HEIGHT / 2
+            x2, y2 = tx, ty + NODE_HEIGHT / 2
+            if x2 <= x1:
+                mid_y = min(y1, y2) - 34
+                path_d = f"M{x1},{y1} C{x1 + 50},{mid_y} {x2 - 50},{mid_y} {x2},{y2}"
+            else:
+                mid_x = (x1 + x2) // 2
+                path_d = f"M{x1},{y1} C{mid_x},{y1} {mid_x},{y2} {x2},{y2}"
         parts.append(
             f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{stroke_width}"{dash} marker-end="url(#{marker})" />'
         )
@@ -110,10 +113,10 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         fill = _node_fill(graph, node_id, node.type)
         label = node.label or node.id
         parts.append(
-            f'<rect x="{x}" y="{y}" width="150" height="48" rx="8" fill="{fill}" stroke="#2f6f73" stroke-width="1.5" />'
+            f'<rect data-node-id="{html.escape(node_id)}" x="{x}" y="{y}" width="{NODE_WIDTH}" height="{NODE_HEIGHT}" rx="8" fill="{fill}" stroke="#2f6f73" stroke-width="1.5" />'
         )
         parts.append(
-            f'<text x="{x + 75}" y="{y + 29}" text-anchor="middle" font-size="14" font-family="Arial, sans-serif" fill="#111827">{html.escape(label)}</text>'
+            f'<text x="{x + NODE_WIDTH / 2}" y="{y + 29}" text-anchor="middle" font-size="14" font-family="Arial, sans-serif" fill="#111827">{html.escape(label)}</text>'
         )
 
     parts.append("</svg>")
@@ -165,6 +168,25 @@ def _export_markdown(paths: list[PathResult]) -> str:
     return "\n".join(lines)
 
 
+def _layout_positions(graph: CDFDGraph) -> dict[str, tuple[int, int]]:
+    levels = _assign_levels(graph)
+    ordered_levels: dict[int, list[str]] = defaultdict(list)
+    for node_id, level in levels.items():
+        ordered_levels[level].append(node_id)
+
+    for level_nodes in ordered_levels.values():
+        level_nodes.sort()
+
+    positions: dict[str, tuple[int, int]] = {}
+    for level, node_ids in sorted(ordered_levels.items()):
+        for row, node_id in enumerate(node_ids):
+            positions[node_id] = (LEFT_PAD + level * X_GAP, TOP_PAD + row * Y_GAP)
+
+    _place_control_nodes(graph, positions)
+    _place_unpositioned_nodes(graph, positions)
+    return _shift_into_view(positions)
+
+
 def _assign_levels(graph: CDFDGraph) -> dict[str, int]:
     levels: dict[str, int] = {graph.start: 0}
     queue: deque[str] = deque([graph.start])
@@ -173,6 +195,8 @@ def _assign_levels(graph: CDFDGraph) -> dict[str, int]:
         node_id = queue.popleft()
         current_level = levels[node_id]
         for edge in graph.outgoing_edges(node_id):
+            if edge.kind == "control":
+                continue
             next_level = current_level + 1
             if edge.target not in levels or next_level < levels[edge.target]:
                 levels[edge.target] = next_level
@@ -181,10 +205,52 @@ def _assign_levels(graph: CDFDGraph) -> dict[str, int]:
     next_level = max(levels.values(), default=0) + 1
     for node_id in graph.nodes:
         if node_id not in levels:
+            if graph.nodes[node_id].type == "state":
+                continue
             levels[node_id] = next_level
             next_level += 1
 
     return levels
+
+
+def _place_control_nodes(graph: CDFDGraph, positions: dict[str, tuple[int, int]]) -> None:
+    by_target: dict[str, list[str]] = defaultdict(list)
+    for edge in graph.edges:
+        if edge.kind != "control" or edge.target not in positions:
+            continue
+        by_target[edge.target].append(edge.source)
+
+    for target_id, source_ids in by_target.items():
+        tx, ty = positions[target_id]
+        unique_sources = sorted(set(source_ids))
+        for index, source_id in enumerate(unique_sources):
+            if source_id in positions:
+                continue
+            offset = (index - (len(unique_sources) - 1) / 2) * (NODE_WIDTH + 24)
+            positions[source_id] = (int(tx + offset), int(ty - CONTROL_GAP))
+
+
+def _place_unpositioned_nodes(graph: CDFDGraph, positions: dict[str, tuple[int, int]]) -> None:
+    if not graph.nodes:
+        return
+    next_x = max((x for x, _ in positions.values()), default=LEFT_PAD - X_GAP) + X_GAP
+    next_y = TOP_PAD
+    for node_id in graph.nodes:
+        if node_id not in positions:
+            positions[node_id] = (next_x, next_y)
+            next_y += Y_GAP
+
+
+def _shift_into_view(positions: dict[str, tuple[int, int]]) -> dict[str, tuple[int, int]]:
+    if not positions:
+        return positions
+    min_x = min(x for x, _ in positions.values())
+    min_y = min(y for _, y in positions.values())
+    dx = max(0, LEFT_PAD - min_x)
+    dy = max(0, TOP_PAD / 2 - min_y)
+    if not dx and not dy:
+        return positions
+    return {node_id: (int(x + dx), int(y + dy)) for node_id, (x, y) in positions.items()}
 
 
 def _node_fill(graph: CDFDGraph, node_id: str, node_type: str) -> str:

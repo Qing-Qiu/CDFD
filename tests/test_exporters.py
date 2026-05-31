@@ -1,4 +1,5 @@
 import json
+import re
 
 from cdfd.exporters import export_paths, render_svg
 from cdfd.parsers import parse_cdfd
@@ -89,3 +90,41 @@ def test_render_svg_draws_control_edges_as_dashed():
 
     assert "stroke-dasharray" in svg
     assert "s1 == 1" in svg
+
+
+def test_render_svg_places_control_state_near_target():
+    graph = parse_cdfd(
+        """
+        {
+          "start": "IN",
+          "ends": ["OUT"],
+          "nodes": [
+            {"id": "IN", "type": "external"},
+            {"id": "S1", "type": "state", "label": "1 s1"},
+            {"id": "A1", "type": "process"},
+            {"id": "A2", "type": "process"},
+            {"id": "OUT", "type": "external"}
+          ],
+          "edges": [
+            {"id": "e0", "from": "IN", "to": "A1", "data": ["x1"]},
+            {"id": "c1", "from": "S1", "to": "A1", "kind": "control", "condition": "s1 == 1"},
+            {"id": "e1", "from": "A1", "to": "A2", "data": ["x2"]},
+            {"id": "e2", "from": "A2", "to": "OUT", "data": ["x3"]}
+          ]
+        }
+        """,
+        "json",
+    )
+
+    svg = render_svg(graph)
+    s1 = _rect_position(svg, "S1")
+    a1 = _rect_position(svg, "A1")
+
+    assert abs(s1[0] - a1[0]) <= 90
+    assert s1[1] < a1[1]
+
+
+def _rect_position(svg: str, node_id: str) -> tuple[int, int]:
+    match = re.search(rf'data-node-id="{node_id}" x="(?P<x>\d+)" y="(?P<y>\d+)"', svg)
+    assert match is not None
+    return int(match.group("x")), int(match.group("y"))
