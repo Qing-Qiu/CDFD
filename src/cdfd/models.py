@@ -39,6 +39,7 @@ class PathResult(BaseModel):
     edges: list[str]
     data: list[str] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
+    preconditions: list[str] = Field(default_factory=list)
     conditions: list[str] = Field(default_factory=list)
 
 

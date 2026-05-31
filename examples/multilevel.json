@@ -31,6 +31,7 @@
       "ends": ["OUT_X6", "OUT_X7"],
       "nodes": [
         { "id": "IN", "type": "external", "label": "Input" },
+        { "id": "S1", "type": "state", "label": "1 s1" },
         { "id": "A1", "type": "process" },
         { "id": "A2", "type": "process" },
         { "id": "A3", "type": "process" },
@@ -40,6 +41,7 @@
       ],
       "edges": [
         { "id": "e0", "from": "IN", "to": "A1", "data": ["x1"] },
+        { "id": "c1", "from": "S1", "to": "A1", "kind": "control", "condition": "s1 == 1" },
         { "id": "e1", "from": "A1", "to": "A2", "data": ["x2"] },
         { "id": "e2", "from": "A1", "to": "A3", "data": ["x3"] },
         { "id": "e3", "from": "A2", "to": "A4", "data": ["x4"] },
@@ -85,8 +87,13 @@
           "A332": ["x7"]
         }
       },
-      "nodes": ["A331", "A332"],
+      "nodes": [
+        { "id": "S2", "type": "state", "label": "2 s2" },
+        { "id": "A331", "type": "process" },
+        { "id": "A332", "type": "process" }
+      ],
       "edges": [
+        { "id": "c1", "from": "S2", "to": "A331", "kind": "control", "condition": "s2 == 2" },
         { "id": "e1", "from": "A331", "to": "A332", "data": ["d2"] }
       ]
     }

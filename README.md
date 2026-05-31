@@ -114,10 +114,32 @@ B,D,x2,ok
 
 Use `data` for CDFD data-flow labels (`x1`, `x6`, `y1`, `z2`). Use `condition` for guards or control conditions. Process-level `pre` and `post` describe preconditions and input/output relationships, such as `s1 == 1`.
 
+State/control labels such as `s1` and `s2` can be shown in the graph as `state` nodes connected by `control` edges:
+
+```json
+{
+  "nodes": [
+    { "id": "S1", "type": "state", "label": "1 s1" },
+    { "id": "A1", "type": "process" }
+  ],
+  "edges": [
+    { "from": "S1", "to": "A1", "kind": "control", "condition": "s1 == 1" }
+  ]
+}
+```
+
+The Web visualization draws `control` edges as dashed arrows.
+
 Text output renders paths as data-flow transitions when every edge has one data label:
 
 ```text
 IN --[x1]--> A1 --[x2]--> A2 --[x4]--> A4 --[x6]--> OUT_X6
+```
+
+For expanded multi-level paths, process preconditions are shown separately:
+
+```text
+Preconditions: A1: s1 == 1; A33: s2 == 2
 ```
 
 ## Cycle Strategies

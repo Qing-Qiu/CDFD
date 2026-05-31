@@ -475,6 +475,9 @@
         if (item.data.length) {
           li.textContent += ` | data: ${item.data.join(", ")}`;
         }
+        if (item.preconditions.length) {
+          li.textContent += ` | pre: ${item.preconditions.join("; ")}`;
+        }
         if (item.conditions.length) {
           li.textContent += ` | conditions: ${item.conditions.join(", ")}`;
         }

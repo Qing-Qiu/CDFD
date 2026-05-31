@@ -21,7 +21,7 @@ def test_export_paths_as_markdown():
 
     markdown = export_paths(paths, "markdown")
 
-    assert "| P1 | A -> B | x1 | ok |" in markdown
+    assert "| P1 | A -> B | x1 | - | ok |" in markdown
 
 
 def test_export_paths_as_json_and_csv():
@@ -63,3 +63,29 @@ def test_render_svg_contains_nodes_and_edges():
     assert "<svg" in svg
     assert "A" in svg
     assert "B" in svg
+
+
+def test_render_svg_draws_control_edges_as_dashed():
+    graph = parse_cdfd(
+        """
+        {
+          "start": "A",
+          "ends": ["B"],
+          "nodes": [
+            {"id": "S1", "type": "state", "label": "1 s1"},
+            "A",
+            "B"
+          ],
+          "edges": [
+            {"id": "c1", "from": "S1", "to": "A", "kind": "control", "condition": "s1 == 1"},
+            {"id": "e1", "from": "A", "to": "B", "data": ["x1"]}
+          ]
+        }
+        """,
+        "json",
+    )
+
+    svg = render_svg(graph)
+
+    assert "stroke-dasharray" in svg
+    assert "s1 == 1" in svg

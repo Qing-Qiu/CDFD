@@ -45,6 +45,7 @@ def find_paths(
                     edges=list(edge_path),
                     data=list(data_path),
                     outputs=_node_outputs(graph, current),
+                    preconditions=[],
                     conditions=list(conditions),
                 )
             )

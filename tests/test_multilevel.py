@@ -44,9 +44,9 @@ def test_multilevel_paths_expand_decomposed_processes():
     {
       "module": {"name": "M", "behav": "Top"},
       "processes": [
-        {"id": "A1", "decom": "A1_detail"},
+        {"id": "A1", "pre": "s1 == 1", "decom": "A1_detail"},
         {"id": "A3", "decom": "A3_detail"},
-        {"id": "A33", "decom": "A33_detail"}
+        {"id": "A33", "pre": "s2 == 2", "decom": "A33_detail"}
       ],
       "graphs": {
         "Top": {
@@ -105,6 +105,8 @@ def test_multilevel_paths_expand_decomposed_processes():
     ]
     assert paths[0].edges == ["A1_detail:e1", "A1_detail:e2", "Top:e1", "Top:e3"]
     assert paths[2].data == ["y1", "y2", "x3", "z2", "d2", "x7"]
+    assert paths[0].preconditions == ["A1: s1 == 1"]
+    assert paths[2].preconditions == ["A1: s1 == 1", "A33: s2 == 2"]
     assert paths[2].conditions == []
 
 

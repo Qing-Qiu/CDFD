@@ -66,7 +66,7 @@ def _expand_base_path(
     *,
     stack: list[str],
 ) -> list[PathResult]:
-    partials = [PathResult(nodes=[], edges=[], data=[], outputs=[], conditions=[])]
+    partials = [PathResult(nodes=[], edges=[], data=[], outputs=[], preconditions=[], conditions=[])]
 
     for index, node_id in enumerate(base_path.nodes):
         node_segments = _node_segments(project, node_id, options, stack=stack)
@@ -80,6 +80,7 @@ def _expand_base_path(
             for segment in node_segments:
                 edges = [*partial.edges, *segment.edges]
                 data = [*partial.data, *segment.data]
+                preconditions = [*partial.preconditions, *segment.preconditions]
                 conditions = [*partial.conditions, *segment.conditions]
 
                 if parent_edge_id:
@@ -95,6 +96,7 @@ def _expand_base_path(
                         edges=edges,
                         data=data,
                         outputs=segment.outputs or base_path.outputs,
+                        preconditions=preconditions,
                         conditions=conditions,
                     )
                 )
@@ -113,10 +115,30 @@ def _node_segments(
 ) -> list[PathResult]:
     process = project.processes.get(node_id)
     if not process or not process.decom:
-        return [PathResult(nodes=[node_id], edges=[], data=[], outputs=process.outputs if process else [], conditions=[])]
+        return [
+            PathResult(
+                nodes=[node_id],
+                edges=[],
+                data=[],
+                outputs=process.outputs if process else [],
+                preconditions=_process_preconditions(node_id, process),
+                conditions=[],
+            )
+        ]
     if process.decom not in project.graphs:
         raise ValueError(f"Process '{node_id}' decomposes to missing graph '{process.decom}'.")
-    return _expand_graph(project, process.decom, options, stack=stack)
+    segments = _expand_graph(project, process.decom, options, stack=stack)
+    return [
+        PathResult(
+            nodes=segment.nodes,
+            edges=segment.edges,
+            data=segment.data,
+            outputs=segment.outputs,
+            preconditions=[*_process_preconditions(node_id, process), *segment.preconditions],
+            conditions=segment.conditions,
+        )
+        for segment in segments
+    ]
 
 
 def _qualify_edge(graph_name: str, edge_id: str) -> str:
@@ -135,3 +157,9 @@ def _compatible_segments(segments: list[PathResult], parent_edge_data: list[str]
         return segments
     constrained = [segment for segment in segments if not segment.outputs or set(segment.outputs) & set(parent_edge_data)]
     return constrained or segments
+
+
+def _process_preconditions(node_id: str, process) -> list[str]:
+    if process and process.pre:
+        return [f"{node_id}: {process.pre}"]
+    return []

@@ -89,6 +89,7 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         color = "#b45309" if edge.id in highlighted_edges else "#4b5563"
         marker = "arrow-highlight" if edge.id in highlighted_edges else "arrow"
         stroke_width = "3" if edge.id in highlighted_edges else "2"
+        dash = ' stroke-dasharray="6 5"' if edge.kind == "control" else ""
         if x2 <= x1:
             mid_y = min(y1, y2) - 34
             path_d = f"M{x1},{y1} C{x1 + 50},{mid_y} {x2 - 50},{mid_y} {x2},{y2}"
@@ -96,7 +97,7 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
             mid_x = (x1 + x2) // 2
             path_d = f"M{x1},{y1} C{mid_x},{y1} {mid_x},{y2} {x2},{y2}"
         parts.append(
-            f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{stroke_width}" marker-end="url(#{marker})" />'
+            f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{stroke_width}"{dash} marker-end="url(#{marker})" />'
         )
         if label:
             lx, ly = (x1 + x2) // 2, (y1 + y2) // 2 - 8
@@ -127,6 +128,8 @@ def _export_text(paths: list[PathResult]) -> str:
         lines.append(f"Path {index}: {_path_route(path)}")
         if path.data:
             lines.append(f"  Data: {', '.join(path.data)}")
+        if path.preconditions:
+            lines.append(f"  Preconditions: {'; '.join(path.preconditions)}")
         if path.conditions:
             lines.append(f"  Conditions: {', '.join(path.conditions)}")
     return "\n".join(lines)
@@ -135,7 +138,7 @@ def _export_text(paths: list[PathResult]) -> str:
 def _export_csv(paths: list[PathResult]) -> str:
     stream = StringIO()
     writer = csv.writer(stream)
-    writer.writerow(["id", "nodes", "edges", "data", "conditions"])
+    writer.writerow(["id", "nodes", "edges", "data", "preconditions", "conditions"])
     for index, path in enumerate(paths, start=1):
         writer.writerow(
             [
@@ -143,6 +146,7 @@ def _export_csv(paths: list[PathResult]) -> str:
                 " -> ".join(path.nodes),
                 " -> ".join(path.edges),
                 " ; ".join(path.data),
+                " ; ".join(path.preconditions),
                 " ; ".join(path.conditions),
             ]
         )
@@ -152,11 +156,12 @@ def _export_csv(paths: list[PathResult]) -> str:
 def _export_markdown(paths: list[PathResult]) -> str:
     if not paths:
         return "No paths found."
-    lines = ["| ID | Nodes | Data | Conditions |", "| --- | --- | --- | --- |"]
+    lines = ["| ID | Nodes | Data | Preconditions | Conditions |", "| --- | --- | --- | --- | --- |"]
     for index, path in enumerate(paths, start=1):
         data = ", ".join(path.data) if path.data else "-"
+        preconditions = "; ".join(path.preconditions) if path.preconditions else "-"
         conditions = ", ".join(path.conditions) if path.conditions else "-"
-        lines.append(f"| P{index} | {' -> '.join(path.nodes)} | {data} | {conditions} |")
+        lines.append(f"| P{index} | {' -> '.join(path.nodes)} | {data} | {preconditions} | {conditions} |")
     return "\n".join(lines)
 
 
