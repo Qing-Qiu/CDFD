@@ -202,6 +202,14 @@
       height: auto;
     }
 
+    .visual-head {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: end;
+    }
+
     .message {
       margin-bottom: 14px;
       border-radius: 8px;
@@ -287,12 +295,12 @@
 
         <div class="grid-two">
           <div class="field">
-            <label for="start">Start override</label>
-            <input id="start" placeholder="Required for CSV">
+            <label for="start">Start node</label>
+            <input id="start" placeholder="Auto-detect">
           </div>
           <div class="field">
-            <label for="ends">End nodes</label>
-            <input id="ends" placeholder="D or D,E">
+            <label for="ends">End node(s)</label>
+            <input id="ends" placeholder="Auto-detect or D,E">
           </div>
         </div>
 
@@ -345,8 +353,18 @@
           <ol id="paths" class="path-list">
             <li class="empty">Run the generator to see paths.</li>
           </ol>
-          <div id="visual" class="visual">
-            <div class="empty">Graph visualization will appear here.</div>
+          <div>
+            <div class="visual-head">
+              <div class="field">
+                <label for="graphLayer">Graph layer</label>
+                <select id="graphLayer" disabled>
+                  <option value="">-</option>
+                </select>
+              </div>
+            </div>
+            <div id="visual" class="visual">
+              <div class="empty">Graph visualization will appear here.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -365,6 +383,8 @@
     const edgeCount = document.getElementById("edgeCount");
     const graphCount = document.getElementById("graphCount");
     const pathCount = document.getElementById("pathCount");
+    const graphLayer = document.getElementById("graphLayer");
+    let graphSvgs = {};
 
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files[0];
@@ -404,12 +424,20 @@
           throw new Error(data.detail || "Request failed.");
         }
 
-        graphCount.textContent = data.project.graph_count;
-        nodeCount.textContent = data.project.total_nodes;
-        edgeCount.textContent = data.project.total_edges;
+        const project = data.project || {
+          entry_graph: "main",
+          graph_count: 1,
+          total_nodes: data.graph ? data.graph.nodes.length : 0,
+          total_edges: data.graph ? data.graph.edges.length : 0,
+          graphs: data.graph ? { main: data.graph } : {}
+        };
+        graphCount.textContent = project.graph_count;
+        nodeCount.textContent = project.total_nodes;
+        edgeCount.textContent = project.total_edges;
         pathCount.textContent = data.paths.length;
         renderPaths(data.paths);
-        visual.innerHTML = data.svg;
+        graphSvgs = data.graph_svgs || { [project.entry_graph || "main"]: data.svg };
+        renderGraphSelector(project.entry_graph, graphSvgs);
 
         const cycleCount = Object.values(data.cycles).reduce((total, graphCycles) => total + graphCycles.length, 0);
         if (cycleCount) {
@@ -424,8 +452,15 @@
         pathCount.textContent = "0";
         paths.innerHTML = '<li class="empty">No paths.</li>';
         visual.innerHTML = '<div class="empty">No graph.</div>';
+        graphLayer.innerHTML = '<option value="">-</option>';
+        graphLayer.disabled = true;
+        graphSvgs = {};
         setMessage(error.message, "error");
       }
+    });
+
+    graphLayer.addEventListener("change", () => {
+      visual.innerHTML = graphSvgs[graphLayer.value] || '<div class="empty">No graph.</div>';
     });
 
     function renderPaths(items) {
@@ -447,6 +482,21 @@
     function setMessage(text, type) {
       message.textContent = text;
       message.className = type ? `message ${type}` : "message";
+    }
+
+    function renderGraphSelector(entryGraph, svgs) {
+      const names = Object.keys(svgs);
+      graphLayer.innerHTML = "";
+      for (const name of names) {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        graphLayer.appendChild(option);
+      }
+      const selected = names.includes(entryGraph) ? entryGraph : names[0];
+      graphLayer.value = selected;
+      graphLayer.disabled = names.length < 2;
+      visual.innerHTML = svgs[selected] || '<div class="empty">No graph.</div>';
     }
   </script>
 </body>

@@ -60,6 +60,44 @@ def test_parse_csv_edge_list_requires_cli_start_and_end():
     assert set(graph.nodes) == {"A", "B", "C"}
 
 
+def test_parse_csv_edge_list_infers_start_and_end_when_unambiguous():
+    graph = parse_cdfd(
+        "from,to,condition\nA,B,\nB,C,done\n",
+        "csv",
+    )
+
+    assert graph.start == "A"
+    assert graph.ends == {"C"}
+
+
+def test_parse_json_graph_infers_start_and_ends_when_omitted():
+    graph = parse_cdfd(
+        """
+        {
+          "nodes": ["A", "B", "C", "D"],
+          "edges": [
+            {"from": "A", "to": "B"},
+            {"from": "A", "to": "C"},
+            {"from": "B", "to": "D"},
+            {"from": "C", "to": "D"}
+          ]
+        }
+        """,
+        "json",
+    )
+
+    assert graph.start == "A"
+    assert graph.ends == {"D"}
+
+
+def test_parse_requires_start_when_auto_detection_is_ambiguous():
+    with pytest.raises(ParseError, match="multiple candidates"):
+        parse_cdfd(
+            "from,to\nA,C\nB,C\n",
+            "csv",
+        )
+
+
 def test_parse_rejects_missing_edge_node():
     with pytest.raises(ParseError):
         parse_cdfd(

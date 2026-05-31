@@ -63,6 +63,10 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
         "paths": [path.model_dump() if hasattr(path, "model_dump") else path.dict() for path in paths],
         "text": export_paths(paths, "text"),
         "svg": render_svg(graph, paths, graph_name=project.entry_graph),
+        "graph_svgs": {
+            name: render_svg(project_graph, paths, graph_name=name)
+            for name, project_graph in project.graphs.items()
+        },
     }
 
 

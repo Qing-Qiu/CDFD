@@ -45,6 +45,14 @@ Generate bounded cyclic paths from CSV:
 cdfd-paths examples/loop.csv --start A --end C --strategy max-depth --max-depth 4
 ```
 
+For acyclic graphs, start and end nodes can be auto-detected:
+
+```bash
+cdfd-paths examples/linear.csv
+```
+
+Provide `--start` or `--end` when the graph has cycles, multiple possible starts, or a non-standard entry/exit.
+
 Generate expanded paths from a multi-level CDFD project:
 
 ```bash
@@ -95,7 +103,7 @@ JSON and YAML inputs use this structure:
 }
 ```
 
-CSV inputs are edge lists and require `--start` and `--end`:
+CSV inputs are edge lists. `start` and `ends` are auto-detected when the graph has one source-only node and at least one sink node:
 
 ```csv
 from,to,condition
@@ -139,3 +147,5 @@ JSON and YAML can also describe a full CDFD project:
 ```
 
 `module.behav` selects the top-level CDFD. Each `process.decom` points to another graph. By default, the generator recursively replaces decomposed processes with paths from their child CDFD.
+
+The Web UI includes a graph-layer selector so each CDFD layer can be inspected separately.

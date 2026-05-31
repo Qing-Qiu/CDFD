@@ -349,11 +349,7 @@ def _graph_from_csv(
     start: str | None,
     ends: str | list[str] | None,
 ) -> CDFDGraph:
-    if not start:
-        raise ParseError("CSV input requires a start node.")
     coerced_ends = set(_coerce_id_list(ends, "ends"))
-    if not coerced_ends:
-        raise ParseError("CSV input requires at least one end node.")
 
     reader = csv.DictReader(StringIO(content))
     if reader.fieldnames is None:
@@ -400,7 +396,7 @@ def _graph_from_csv(
             )
         )
 
-    for node_id in [start, *coerced_ends]:
+    for node_id in [node_id for node_id in [start, *coerced_ends] if node_id]:
         nodes.setdefault(node_id, Node(id=node_id))
 
     return _build_graph(nodes=nodes, edges=edges, start=start, ends=coerced_ends, metadata={})
@@ -414,6 +410,11 @@ def _build_graph(
     ends: set[str],
     metadata: dict[str, Any],
 ) -> CDFDGraph:
+    if not start:
+        start = _infer_start(nodes, edges)
+    if not ends:
+        ends = set(_infer_ends(nodes, edges))
+
     if not start:
         raise ParseError("CDFD input must define a start node.")
     if not ends:
@@ -432,6 +433,36 @@ def _build_graph(
             raise ParseError(f"Edge '{edge.id}' references missing target '{edge.target}'.")
 
     return CDFDGraph(nodes=nodes, edges=edges, start=start, ends=ends, metadata=metadata)
+
+
+def _infer_start(nodes: dict[str, Node], edges: list[Edge]) -> str:
+    incoming, outgoing = _degree_maps(nodes, edges)
+    candidates = sorted(node_id for node_id in nodes if incoming[node_id] == 0 and outgoing[node_id] > 0)
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates:
+        raise ParseError("CDFD input must define a start node; automatic detection found no source-only node.")
+    raise ParseError(
+        "CDFD input must define a start node; automatic detection found multiple candidates: "
+        + ", ".join(candidates)
+    )
+
+
+def _infer_ends(nodes: dict[str, Node], edges: list[Edge]) -> list[str]:
+    incoming, outgoing = _degree_maps(nodes, edges)
+    candidates = sorted(node_id for node_id in nodes if outgoing[node_id] == 0 and incoming[node_id] > 0)
+    if candidates:
+        return candidates
+    raise ParseError("CDFD input must define end node(s); automatic detection found no sink node.")
+
+
+def _degree_maps(nodes: dict[str, Node], edges: list[Edge]) -> tuple[dict[str, int], dict[str, int]]:
+    incoming = {node_id: 0 for node_id in nodes}
+    outgoing = {node_id: 0 for node_id in nodes}
+    for edge in edges:
+        outgoing[edge.source] = outgoing.get(edge.source, 0) + 1
+        incoming[edge.target] = incoming.get(edge.target, 0) + 1
+    return incoming, outgoing
 
 
 def _coerce_id_list(value: Any, field_name: str) -> list[str]:
