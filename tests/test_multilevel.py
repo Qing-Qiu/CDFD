@@ -61,10 +61,13 @@ def test_multilevel_paths_expand_decomposed_processes():
           ]
         },
         "A1_detail": {
-          "start": "A11",
+          "start": "A12",
           "ends": ["A13"],
-          "nodes": ["A11", "A13"],
-          "edges": [{"id": "e1", "from": "A11", "to": "A13", "condition": "y2"}]
+          "nodes": ["A11", "A12", "A13"],
+          "edges": [
+            {"id": "e1", "from": "A12", "to": "A11", "condition": "y1"},
+            {"id": "e2", "from": "A11", "to": "A13", "condition": "y2"}
+          ]
         },
         "A3_detail": {
           "start": "A31",
@@ -89,12 +92,12 @@ def test_multilevel_paths_expand_decomposed_processes():
     paths = find_project_paths(project, PathFindingOptions(strategy="simple"))
 
     assert [path.nodes for path in paths] == [
-        ["A11", "A13", "A2", "A4"],
-        ["A11", "A13", "A31", "A32", "A4"],
-        ["A11", "A13", "A31", "A331", "A332", "A4"],
+        ["A12", "A11", "A13", "A2", "A4"],
+        ["A12", "A11", "A13", "A31", "A32", "A4"],
+        ["A12", "A11", "A13", "A31", "A331", "A332", "A4"],
     ]
-    assert paths[0].edges == ["A1_detail:e1", "Top:e1", "Top:e3"]
-    assert paths[2].conditions == ["y2", "x3", "z2", "d2", "x5"]
+    assert paths[0].edges == ["A1_detail:e1", "A1_detail:e2", "Top:e1", "Top:e3"]
+    assert paths[2].conditions == ["y1", "y2", "x3", "z2", "d2", "x5"]
 
 
 def test_no_expand_keeps_top_level_processes():

@@ -43,11 +43,12 @@
       ]
     },
     "A1_detail": {
-      "start": "A11",
+      "start": "A12",
       "ends": ["A13"],
       "nodes": ["A11", "A12", "A13"],
       "edges": [
-        { "id": "e1", "from": "A11", "to": "A13", "condition": "y2" }
+        { "id": "e1", "from": "A12", "to": "A11", "condition": "y1" },
+        { "id": "e2", "from": "A11", "to": "A13", "condition": "y2" }
       ]
     },
     "A3_detail": {
