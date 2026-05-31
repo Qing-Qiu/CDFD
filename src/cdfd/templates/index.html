@@ -471,7 +471,7 @@
       }
       for (const item of items) {
         const li = document.createElement("li");
-        li.textContent = item.nodes.join(" -> ");
+        li.textContent = formatRoute(item);
         if (item.data.length) {
           li.textContent += ` | data: ${item.data.join(", ")}`;
         }
@@ -485,6 +485,17 @@
     function setMessage(text, type) {
       message.textContent = text;
       message.className = type ? `message ${type}` : "message";
+    }
+
+    function formatRoute(item) {
+      if (item.data.length === item.nodes.length - 1) {
+        let route = item.nodes[0];
+        for (let index = 0; index < item.data.length; index += 1) {
+          route += ` --[${item.data[index]}]--> ${item.nodes[index + 1]}`;
+        }
+        return route;
+      }
+      return item.nodes.join(" -> ");
     }
 
     function renderGraphSelector(entryGraph, svgs) {

@@ -44,6 +44,7 @@ def find_paths(
                     nodes=list(node_path),
                     edges=list(edge_path),
                     data=list(data_path),
+                    outputs=_node_outputs(graph, current),
                     conditions=list(conditions),
                 )
             )
@@ -117,3 +118,14 @@ def _normalize_strategy(strategy: str) -> str:
     if normalized in {"max-depth", "depth"}:
         return "max-depth"
     raise ValueError("strategy must be either 'simple' or 'max-depth'.")
+
+
+def _node_outputs(graph: CDFDGraph, node_id: str) -> list[str]:
+    raw_outputs = graph.metadata.get("outputs", {})
+    if isinstance(raw_outputs, dict):
+        value = raw_outputs.get(node_id, [])
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [str(item) for item in value]
+    return []

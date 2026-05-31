@@ -51,6 +51,11 @@
     "A1_detail": {
       "start": "A12",
       "ends": ["A13"],
+      "metadata": {
+        "outputs": {
+          "A13": ["x2", "x3"]
+        }
+      },
       "nodes": ["A11", "A12", "A13"],
       "edges": [
         { "id": "e1", "from": "A12", "to": "A11", "data": ["y1"] },
@@ -60,6 +65,12 @@
     "A3_detail": {
       "start": "A31",
       "ends": ["A32", "A33"],
+      "metadata": {
+        "outputs": {
+          "A32": ["x5"],
+          "A33": ["x7"]
+        }
+      },
       "nodes": ["A31", "A32", "A33"],
       "edges": [
         { "id": "e1", "from": "A31", "to": "A32", "data": ["z1"] },
@@ -69,6 +80,11 @@
     "A33_detail": {
       "start": "A331",
       "ends": ["A332"],
+      "metadata": {
+        "outputs": {
+          "A332": ["x7"]
+        }
+      },
       "nodes": ["A331", "A332"],
       "edges": [
         { "id": "e1", "from": "A331", "to": "A332", "data": ["d2"] }

@@ -114,6 +114,12 @@ B,D,x2,ok
 
 Use `data` for CDFD data-flow labels (`x1`, `x6`, `y1`, `z2`). Use `condition` for guards or control conditions. Process-level `pre` and `post` describe preconditions and input/output relationships, such as `s1 == 1`.
 
+Text output renders paths as data-flow transitions when every edge has one data label:
+
+```text
+IN --[x1]--> A1 --[x2]--> A2 --[x4]--> A4 --[x6]--> OUT_X6
+```
+
 ## Cycle Strategies
 
 - `simple`: a path may not visit the same node twice.
@@ -152,3 +158,16 @@ JSON and YAML can also describe a full CDFD project:
 `module.behav` selects the top-level CDFD. Each `process.decom` points to another graph. By default, the generator recursively replaces decomposed processes with paths from their child CDFD.
 
 The Web UI includes a graph-layer selector so each CDFD layer can be inspected separately.
+
+When a decomposed process has multiple child exits, graph metadata can map child end nodes to parent-level output data. This prevents invalid combinations such as using an `x7` child exit on an `x5` parent edge:
+
+```json
+{
+  "metadata": {
+    "outputs": {
+      "A32": ["x5"],
+      "A33": ["x7"]
+    }
+  }
+}
+```

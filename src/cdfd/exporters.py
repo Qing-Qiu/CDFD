@@ -124,7 +124,7 @@ def _export_text(paths: list[PathResult]) -> str:
         return "No paths found."
     lines: list[str] = []
     for index, path in enumerate(paths, start=1):
-        lines.append(f"Path {index}: {' -> '.join(path.nodes)}")
+        lines.append(f"Path {index}: {_path_route(path)}")
         if path.data:
             lines.append(f"  Data: {', '.join(path.data)}")
         if path.conditions:
@@ -202,6 +202,15 @@ def _edge_label(edge) -> str:
     if edge.data:
         return ", ".join(edge.data)
     return edge.condition or edge.label or ""
+
+
+def _path_route(path: PathResult) -> str:
+    if len(path.data) == len(path.nodes) - 1:
+        route = path.nodes[0]
+        for index, data in enumerate(path.data, start=1):
+            route += f" --[{data}]--> {path.nodes[index]}"
+        return route
+    return " -> ".join(path.nodes)
 
 
 def _highlighted_edges(edge_ids: Iterable[str], graph_name: str | None) -> set[str]:

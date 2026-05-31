@@ -51,13 +51,14 @@ def test_multilevel_paths_expand_decomposed_processes():
       "graphs": {
         "Top": {
           "start": "A1",
-          "ends": ["A4"],
-          "nodes": ["A1", "A2", "A3", "A4"],
+          "ends": ["A4", "OUT_X7"],
+          "nodes": ["A1", "A2", "A3", "A4", "OUT_X7"],
           "edges": [
             {"id": "e1", "from": "A1", "to": "A2", "data": ["x2"]},
             {"id": "e2", "from": "A1", "to": "A3", "data": ["x3"]},
             {"id": "e3", "from": "A2", "to": "A4", "data": ["x4"]},
-            {"id": "e4", "from": "A3", "to": "A4", "data": ["x5"]}
+            {"id": "e4", "from": "A3", "to": "A4", "data": ["x5"]},
+            {"id": "e5", "from": "A3", "to": "OUT_X7", "data": ["x7"]}
           ]
         },
         "A1_detail": {
@@ -72,6 +73,12 @@ def test_multilevel_paths_expand_decomposed_processes():
         "A3_detail": {
           "start": "A31",
           "ends": ["A32", "A33"],
+          "metadata": {
+            "outputs": {
+              "A32": ["x5"],
+              "A33": ["x7"]
+            }
+          },
           "nodes": ["A31", "A32", "A33"],
           "edges": [
             {"id": "e1", "from": "A31", "to": "A32", "data": ["z1"]},
@@ -94,10 +101,10 @@ def test_multilevel_paths_expand_decomposed_processes():
     assert [path.nodes for path in paths] == [
         ["A12", "A11", "A13", "A2", "A4"],
         ["A12", "A11", "A13", "A31", "A32", "A4"],
-        ["A12", "A11", "A13", "A31", "A331", "A332", "A4"],
+        ["A12", "A11", "A13", "A31", "A331", "A332", "OUT_X7"],
     ]
     assert paths[0].edges == ["A1_detail:e1", "A1_detail:e2", "Top:e1", "Top:e3"]
-    assert paths[2].data == ["y1", "y2", "x3", "z2", "d2", "x5"]
+    assert paths[2].data == ["y1", "y2", "x3", "z2", "d2", "x7"]
     assert paths[2].conditions == []
 
 
