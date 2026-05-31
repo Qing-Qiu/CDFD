@@ -7,7 +7,7 @@
     { "id": "D", "type": "end", "label": "End" }
   ],
   "edges": [
-    { "id": "e1", "from": "A", "to": "B" },
-    { "id": "e2", "from": "B", "to": "D", "condition": "ok" }
+    { "id": "e1", "from": "A", "to": "B", "data": ["x1"] },
+    { "id": "e2", "from": "B", "to": "D", "data": ["x2"], "condition": "ok" }
   ]
 }

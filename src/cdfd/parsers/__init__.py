@@ -323,6 +323,7 @@ def _parse_edges(raw_edges: list[Any]) -> list[Edge]:
             "from",
             "to",
             "kind",
+            "data",
             "condition",
             "label",
             "metadata",
@@ -334,6 +335,7 @@ def _parse_edges(raw_edges: list[Any]) -> list[Edge]:
                 source=str(source),
                 target=str(target),
                 kind=str(raw_edge.get("kind", "flow")),
+                data=_coerce_id_list(raw_edge.get("data"), "data"),
                 condition=_optional_str(raw_edge.get("condition")),
                 label=_optional_str(raw_edge.get("label")),
                 metadata=metadata,
@@ -378,7 +380,7 @@ def _graph_from_csv(
             raise ParseError(f"Duplicate edge id: {edge_id}")
         seen_ids.add(edge_id)
 
-        known = {"id", "from", "to", "kind", "condition", "label"}
+        known = {"id", "from", "to", "kind", "data", "condition", "label"}
         metadata = {
             key: value
             for key, value in row.items()
@@ -390,6 +392,7 @@ def _graph_from_csv(
                 source=source,
                 target=target,
                 kind=_optional_str(row.get("kind")) or "flow",
+                data=_coerce_id_list(row.get("data"), "data"),
                 condition=_optional_str(row.get("condition")),
                 label=_optional_str(row.get("label")),
                 metadata=metadata,

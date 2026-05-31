@@ -17,6 +17,7 @@ class Edge(BaseModel):
     source: str
     target: str
     kind: str = "flow"
+    data: list[str] = Field(default_factory=list)
     condition: str | None = None
     label: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -36,6 +37,7 @@ class CDFDGraph(BaseModel):
 class PathResult(BaseModel):
     nodes: list[str]
     edges: list[str]
+    data: list[str] = Field(default_factory=list)
     conditions: list[str] = Field(default_factory=list)
 
 

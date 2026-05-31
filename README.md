@@ -10,6 +10,7 @@ The project supports:
 - simple-path cycle handling
 - max-depth cycle handling
 - multi-level CDFD process decomposition
+- data-flow labels such as `x1`, `x6`, `y1`, and state/precondition labels such as `s1`
 - text, JSON, CSV, and Markdown outputs
 
 ## Install
@@ -97,8 +98,8 @@ JSON and YAML inputs use this structure:
     { "id": "D", "type": "end" }
   ],
   "edges": [
-    { "id": "e1", "from": "A", "to": "B" },
-    { "id": "e2", "from": "B", "to": "D", "condition": "ok" }
+    { "id": "e1", "from": "A", "to": "B", "data": ["x1"] },
+    { "id": "e2", "from": "B", "to": "D", "data": ["x2"], "condition": "ok" }
   ]
 }
 ```
@@ -106,10 +107,12 @@ JSON and YAML inputs use this structure:
 CSV inputs are edge lists. `start` and `ends` are auto-detected when the graph has one source-only node and at least one sink node:
 
 ```csv
-from,to,condition
-A,B,
-B,D,ok
+from,to,data,condition
+A,B,x1,
+B,D,x2,ok
 ```
+
+Use `data` for CDFD data-flow labels (`x1`, `x6`, `y1`, `z2`). Use `condition` for guards or control conditions. Process-level `pre` and `post` describe preconditions and input/output relationships, such as `s1 == 1`.
 
 ## Cycle Strategies
 
@@ -134,13 +137,13 @@ JSON and YAML can also describe a full CDFD project:
       "start": "A1",
       "ends": ["A2"],
       "nodes": ["A1", "A2"],
-      "edges": [{ "from": "A1", "to": "A2" }]
+      "edges": [{ "from": "A1", "to": "A2", "data": ["x2"] }]
     },
     "A1_detail": {
       "start": "A11",
       "ends": ["A12"],
       "nodes": ["A11", "A12"],
-      "edges": [{ "from": "A11", "to": "A12" }]
+      "edges": [{ "from": "A11", "to": "A12", "data": ["y1"] }]
     }
   }
 }

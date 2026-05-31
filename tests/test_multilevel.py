@@ -54,10 +54,10 @@ def test_multilevel_paths_expand_decomposed_processes():
           "ends": ["A4"],
           "nodes": ["A1", "A2", "A3", "A4"],
           "edges": [
-            {"id": "e1", "from": "A1", "to": "A2", "condition": "x2"},
-            {"id": "e2", "from": "A1", "to": "A3", "condition": "x3"},
-            {"id": "e3", "from": "A2", "to": "A4", "condition": "x4"},
-            {"id": "e4", "from": "A3", "to": "A4", "condition": "x5"}
+            {"id": "e1", "from": "A1", "to": "A2", "data": ["x2"]},
+            {"id": "e2", "from": "A1", "to": "A3", "data": ["x3"]},
+            {"id": "e3", "from": "A2", "to": "A4", "data": ["x4"]},
+            {"id": "e4", "from": "A3", "to": "A4", "data": ["x5"]}
           ]
         },
         "A1_detail": {
@@ -65,8 +65,8 @@ def test_multilevel_paths_expand_decomposed_processes():
           "ends": ["A13"],
           "nodes": ["A11", "A12", "A13"],
           "edges": [
-            {"id": "e1", "from": "A12", "to": "A11", "condition": "y1"},
-            {"id": "e2", "from": "A11", "to": "A13", "condition": "y2"}
+            {"id": "e1", "from": "A12", "to": "A11", "data": ["y1"]},
+            {"id": "e2", "from": "A11", "to": "A13", "data": ["y2"]}
           ]
         },
         "A3_detail": {
@@ -74,15 +74,15 @@ def test_multilevel_paths_expand_decomposed_processes():
           "ends": ["A32", "A33"],
           "nodes": ["A31", "A32", "A33"],
           "edges": [
-            {"id": "e1", "from": "A31", "to": "A32", "condition": "z1"},
-            {"id": "e2", "from": "A31", "to": "A33", "condition": "z2"}
+            {"id": "e1", "from": "A31", "to": "A32", "data": ["z1"]},
+            {"id": "e2", "from": "A31", "to": "A33", "data": ["z2"]}
           ]
         },
         "A33_detail": {
           "start": "A331",
           "ends": ["A332"],
           "nodes": ["A331", "A332"],
-          "edges": [{"id": "e1", "from": "A331", "to": "A332", "condition": "d2"}]
+          "edges": [{"id": "e1", "from": "A331", "to": "A332", "data": ["d2"]}]
         }
       }
     }
@@ -97,7 +97,8 @@ def test_multilevel_paths_expand_decomposed_processes():
         ["A12", "A11", "A13", "A31", "A331", "A332", "A4"],
     ]
     assert paths[0].edges == ["A1_detail:e1", "A1_detail:e2", "Top:e1", "Top:e3"]
-    assert paths[2].conditions == ["y1", "y2", "x3", "z2", "d2", "x5"]
+    assert paths[2].data == ["y1", "y2", "x3", "z2", "d2", "x5"]
+    assert paths[2].conditions == []
 
 
 def test_no_expand_keeps_top_level_processes():

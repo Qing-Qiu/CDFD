@@ -1,4 +1,4 @@
-from,to,condition
-A,B,
-B,A,retry
-B,C,done
+from,to,data,condition
+A,B,x1,
+B,A,x_retry,retry
+B,C,x_done,done

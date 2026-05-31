@@ -21,17 +21,27 @@ edges:
   - id: e1
     from: A
     to: B
+    data:
+      - x1
   - id: e2
     from: B
     to: C
+    data:
+      - x2
     condition: "yes"
   - id: e3
     from: B
     to: D
+    data:
+      - x3
     condition: "no"
   - id: e4
     from: C
     to: E
+    data:
+      - x4
   - id: e5
     from: D
     to: E
+    data:
+      - x5

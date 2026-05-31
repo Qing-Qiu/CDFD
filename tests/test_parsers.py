@@ -12,7 +12,7 @@ def test_parse_json_graph():
           "nodes": ["A", "B", "C"],
           "edges": [
             {"from": "A", "to": "B"},
-            {"from": "B", "to": "C", "condition": "ok"}
+            {"from": "B", "to": "C", "data": ["x1"], "condition": "ok"}
           ]
         }
         """,
@@ -22,6 +22,7 @@ def test_parse_json_graph():
     assert graph.start == "A"
     assert graph.ends == {"C"}
     assert len(graph.edges) == 2
+    assert graph.edges[1].data == ["x1"]
     assert graph.edges[1].condition == "ok"
 
 

@@ -12,7 +12,7 @@ def test_export_paths_as_markdown():
           "start": "A",
           "ends": ["B"],
           "nodes": ["A", "B"],
-          "edges": [{"from": "A", "to": "B", "condition": "ok"}]
+          "edges": [{"from": "A", "to": "B", "data": ["x1"], "condition": "ok"}]
         }
         """,
         "json",
@@ -21,7 +21,7 @@ def test_export_paths_as_markdown():
 
     markdown = export_paths(paths, "markdown")
 
-    assert "| P1 | A -> B | ok |" in markdown
+    assert "| P1 | A -> B | x1 | ok |" in markdown
 
 
 def test_export_paths_as_json_and_csv():
@@ -42,7 +42,7 @@ def test_export_paths_as_json_and_csv():
     csv_output = export_paths(paths, "csv")
 
     assert json.loads(json_output)[0]["nodes"] == ["A", "B"]
-    assert "P1,A -> B,e1," in csv_output
+    assert "P1,A -> B,e1,," in csv_output
 
 
 def test_render_svg_contains_nodes_and_edges():

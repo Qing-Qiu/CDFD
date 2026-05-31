@@ -66,7 +66,7 @@ def _expand_base_path(
     *,
     stack: list[str],
 ) -> list[PathResult]:
-    partials = [PathResult(nodes=[], edges=[], conditions=[])]
+    partials = [PathResult(nodes=[], edges=[], data=[], conditions=[])]
 
     for index, node_id in enumerate(base_path.nodes):
         node_segments = _node_segments(project, node_id, options, stack=stack)
@@ -75,12 +75,14 @@ def _expand_base_path(
         for partial in partials:
             for segment in node_segments:
                 edges = [*partial.edges, *segment.edges]
+                data = [*partial.data, *segment.data]
                 conditions = [*partial.conditions, *segment.conditions]
 
                 if index < len(base_path.edges):
                     parent_edge_id = base_path.edges[index]
                     edges.append(_qualify_edge(graph_name, parent_edge_id))
-                    edge_condition = _edge_condition(project, graph_name, parent_edge_id)
+                    edge_data, edge_condition = _edge_values(project, graph_name, parent_edge_id)
+                    data.extend(edge_data)
                     if edge_condition:
                         conditions.append(edge_condition)
 
@@ -88,6 +90,7 @@ def _expand_base_path(
                     PathResult(
                         nodes=[*partial.nodes, *segment.nodes],
                         edges=edges,
+                        data=data,
                         conditions=conditions,
                     )
                 )
@@ -106,7 +109,7 @@ def _node_segments(
 ) -> list[PathResult]:
     process = project.processes.get(node_id)
     if not process or not process.decom:
-        return [PathResult(nodes=[node_id], edges=[], conditions=[])]
+        return [PathResult(nodes=[node_id], edges=[], data=[], conditions=[])]
     if process.decom not in project.graphs:
         raise ValueError(f"Process '{node_id}' decomposes to missing graph '{process.decom}'.")
     return _expand_graph(project, process.decom, options, stack=stack)
@@ -116,8 +119,8 @@ def _qualify_edge(graph_name: str, edge_id: str) -> str:
     return f"{graph_name}:{edge_id}"
 
 
-def _edge_condition(project: CDFDProject, graph_name: str, edge_id: str) -> str | None:
+def _edge_values(project: CDFDProject, graph_name: str, edge_id: str) -> tuple[list[str], str | None]:
     for edge in project.graphs[graph_name].edges:
         if edge.id == edge_id:
-            return edge.condition
-    return None
+            return edge.data, edge.condition
+    return [], None

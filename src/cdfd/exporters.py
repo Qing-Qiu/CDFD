@@ -85,7 +85,7 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         tx, ty = positions[edge.target]
         x1, y1 = sx + 150, sy + 24
         x2, y2 = tx, ty + 24
-        label = edge.condition or edge.label or ""
+        label = _edge_label(edge)
         color = "#b45309" if edge.id in highlighted_edges else "#4b5563"
         marker = "arrow-highlight" if edge.id in highlighted_edges else "arrow"
         stroke_width = "3" if edge.id in highlighted_edges else "2"
@@ -125,6 +125,8 @@ def _export_text(paths: list[PathResult]) -> str:
     lines: list[str] = []
     for index, path in enumerate(paths, start=1):
         lines.append(f"Path {index}: {' -> '.join(path.nodes)}")
+        if path.data:
+            lines.append(f"  Data: {', '.join(path.data)}")
         if path.conditions:
             lines.append(f"  Conditions: {', '.join(path.conditions)}")
     return "\n".join(lines)
@@ -133,13 +135,14 @@ def _export_text(paths: list[PathResult]) -> str:
 def _export_csv(paths: list[PathResult]) -> str:
     stream = StringIO()
     writer = csv.writer(stream)
-    writer.writerow(["id", "nodes", "edges", "conditions"])
+    writer.writerow(["id", "nodes", "edges", "data", "conditions"])
     for index, path in enumerate(paths, start=1):
         writer.writerow(
             [
                 f"P{index}",
                 " -> ".join(path.nodes),
                 " -> ".join(path.edges),
+                " ; ".join(path.data),
                 " ; ".join(path.conditions),
             ]
         )
@@ -149,10 +152,11 @@ def _export_csv(paths: list[PathResult]) -> str:
 def _export_markdown(paths: list[PathResult]) -> str:
     if not paths:
         return "No paths found."
-    lines = ["| ID | Nodes | Conditions |", "| --- | --- | --- |"]
+    lines = ["| ID | Nodes | Data | Conditions |", "| --- | --- | --- | --- |"]
     for index, path in enumerate(paths, start=1):
+        data = ", ".join(path.data) if path.data else "-"
         conditions = ", ".join(path.conditions) if path.conditions else "-"
-        lines.append(f"| P{index} | {' -> '.join(path.nodes)} | {conditions} |")
+        lines.append(f"| P{index} | {' -> '.join(path.nodes)} | {data} | {conditions} |")
     return "\n".join(lines)
 
 
@@ -187,7 +191,17 @@ def _node_fill(graph: CDFDGraph, node_id: str, node_type: str) -> str:
         return "#e0e7ff"
     if node_type == "data":
         return "#fef9c3"
+    if node_type == "external":
+        return "#e5e7eb"
+    if node_type == "state":
+        return "#fce7f3"
     return "#f8fafc"
+
+
+def _edge_label(edge) -> str:
+    if edge.data:
+        return ", ".join(edge.data)
+    return edge.condition or edge.label or ""
 
 
 def _highlighted_edges(edge_ids: Iterable[str], graph_name: str | None) -> set[str]:

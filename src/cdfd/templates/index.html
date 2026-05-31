@@ -472,8 +472,11 @@
       for (const item of items) {
         const li = document.createElement("li");
         li.textContent = item.nodes.join(" -> ");
+        if (item.data.length) {
+          li.textContent += ` | data: ${item.data.join(", ")}`;
+        }
         if (item.conditions.length) {
-          li.textContent += ` | ${item.conditions.join(", ")}`;
+          li.textContent += ` | conditions: ${item.conditions.join(", ")}`;
         }
         paths.appendChild(li);
       }

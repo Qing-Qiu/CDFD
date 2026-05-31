@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cdfd.models import CDFDGraph, Edge, PathResult
+from cdfd.models import CDFDGraph, PathResult
 
 
 class PathLimitExceeded(RuntimeError):
@@ -30,9 +30,23 @@ def find_paths(
 
     paths: list[PathResult] = []
 
-    def dfs(current: str, node_path: list[str], edge_path: list[str], conditions: list[str], depth: int) -> None:
+    def dfs(
+        current: str,
+        node_path: list[str],
+        edge_path: list[str],
+        data_path: list[str],
+        conditions: list[str],
+        depth: int,
+    ) -> None:
         if current in graph.ends:
-            paths.append(PathResult(nodes=list(node_path), edges=list(edge_path), conditions=list(conditions)))
+            paths.append(
+                PathResult(
+                    nodes=list(node_path),
+                    edges=list(edge_path),
+                    data=list(data_path),
+                    conditions=list(conditions),
+                )
+            )
             if len(paths) > options.max_paths:
                 raise PathLimitExceeded(f"Path generation exceeded max_paths={options.max_paths}.")
             return
@@ -47,11 +61,12 @@ def find_paths(
                 edge.target,
                 [*node_path, edge.target],
                 [*edge_path, edge.id],
+                [*data_path, *edge.data],
                 [*conditions, edge.condition] if edge.condition else list(conditions),
                 depth + 1,
             )
 
-    dfs(graph.start, [graph.start], [], [], 0)
+    dfs(graph.start, [graph.start], [], [], [], 0)
     return sorted(paths, key=lambda path: (len(path.nodes), path.nodes, path.edges))
 
 

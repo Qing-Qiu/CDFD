@@ -27,19 +27,25 @@
   ],
   "graphs": {
     "Top": {
-      "start": "A1",
-      "ends": ["A4"],
+      "start": "IN",
+      "ends": ["OUT_X6", "OUT_X7"],
       "nodes": [
+        { "id": "IN", "type": "external", "label": "Input" },
         { "id": "A1", "type": "process" },
         { "id": "A2", "type": "process" },
         { "id": "A3", "type": "process" },
-        { "id": "A4", "type": "process" }
+        { "id": "A4", "type": "process" },
+        { "id": "OUT_X6", "type": "external", "label": "Output x6" },
+        { "id": "OUT_X7", "type": "external", "label": "Output x7" }
       ],
       "edges": [
-        { "id": "e1", "from": "A1", "to": "A2", "condition": "x2" },
-        { "id": "e2", "from": "A1", "to": "A3", "condition": "x3" },
-        { "id": "e3", "from": "A2", "to": "A4", "condition": "x4" },
-        { "id": "e4", "from": "A3", "to": "A4", "condition": "x5" }
+        { "id": "e0", "from": "IN", "to": "A1", "data": ["x1"] },
+        { "id": "e1", "from": "A1", "to": "A2", "data": ["x2"] },
+        { "id": "e2", "from": "A1", "to": "A3", "data": ["x3"] },
+        { "id": "e3", "from": "A2", "to": "A4", "data": ["x4"] },
+        { "id": "e4", "from": "A3", "to": "A4", "data": ["x5"] },
+        { "id": "e5", "from": "A4", "to": "OUT_X6", "data": ["x6"] },
+        { "id": "e6", "from": "A3", "to": "OUT_X7", "data": ["x7"] }
       ]
     },
     "A1_detail": {
@@ -47,8 +53,8 @@
       "ends": ["A13"],
       "nodes": ["A11", "A12", "A13"],
       "edges": [
-        { "id": "e1", "from": "A12", "to": "A11", "condition": "y1" },
-        { "id": "e2", "from": "A11", "to": "A13", "condition": "y2" }
+        { "id": "e1", "from": "A12", "to": "A11", "data": ["y1"] },
+        { "id": "e2", "from": "A11", "to": "A13", "data": ["y2"] }
       ]
     },
     "A3_detail": {
@@ -56,8 +62,8 @@
       "ends": ["A32", "A33"],
       "nodes": ["A31", "A32", "A33"],
       "edges": [
-        { "id": "e1", "from": "A31", "to": "A32", "condition": "z1" },
-        { "id": "e2", "from": "A31", "to": "A33", "condition": "z2" }
+        { "id": "e1", "from": "A31", "to": "A32", "data": ["z1"] },
+        { "id": "e2", "from": "A31", "to": "A33", "data": ["z2"] }
       ]
     },
     "A33_detail": {
@@ -65,7 +71,7 @@
       "ends": ["A332"],
       "nodes": ["A331", "A332"],
       "edges": [
-        { "id": "e1", "from": "A331", "to": "A332", "condition": "d2" }
+        { "id": "e1", "from": "A331", "to": "A332", "data": ["d2"] }
       ]
     }
   }

@@ -12,8 +12,8 @@ def test_branch_graph_generates_all_simple_paths():
           "edges": [
             {"id": "e1", "from": "A", "to": "B"},
             {"id": "e2", "from": "A", "to": "C"},
-            {"id": "e3", "from": "B", "to": "D", "condition": "yes"},
-            {"id": "e4", "from": "C", "to": "D", "condition": "no"}
+            {"id": "e3", "from": "B", "to": "D", "data": ["x2"], "condition": "yes"},
+            {"id": "e4", "from": "C", "to": "D", "data": ["x3"], "condition": "no"}
           ]
         }
         """,
@@ -23,6 +23,8 @@ def test_branch_graph_generates_all_simple_paths():
     paths = find_paths(graph)
 
     assert [path.nodes for path in paths] == [["A", "B", "D"], ["A", "C", "D"]]
+    assert paths[0].data == ["x2"]
+    assert paths[1].data == ["x3"]
     assert paths[0].conditions == ["yes"]
     assert paths[1].conditions == ["no"]
 
