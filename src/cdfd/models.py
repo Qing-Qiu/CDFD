@@ -88,6 +88,18 @@ class PathRelation(BaseModel):
     reason: str | None = None
 
 
+class ConsistencyIssue(BaseModel):
+    id: str
+    severity: str = "warning"
+    rule: str
+    message: str
+    graph: str | None = None
+    node: str | None = None
+    edge: str | None = None
+    process: str | None = None
+    data: list[str] = Field(default_factory=list)
+
+
 class PathGroup(PathRelation):
     """Backward-compatible name for older callers."""
 

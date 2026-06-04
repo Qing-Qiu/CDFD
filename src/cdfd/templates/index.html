@@ -411,6 +411,12 @@
                 <li class="empty">Run the generator to see relations.</li>
               </ol>
             </div>
+            <div>
+              <div class="list-title">CDFD consistency</div>
+              <ol id="consistencyIssues" class="path-list group-list">
+                <li class="empty">Run the generator to see consistency checks.</li>
+              </ol>
+            </div>
           </div>
           <div>
             <div class="visual-head">
@@ -437,6 +443,7 @@
     const message = document.getElementById("message");
     const paths = document.getElementById("paths");
     const pathRelations = document.getElementById("pathRelations");
+    const consistencyIssues = document.getElementById("consistencyIssues");
     const visual = document.getElementById("visual");
     const nodeCount = document.getElementById("nodeCount");
     const edgeCount = document.getElementById("edgeCount");
@@ -455,6 +462,7 @@
       setMessage("Generating paths.", "");
       paths.innerHTML = "";
       pathRelations.innerHTML = "";
+      consistencyIssues.innerHTML = "";
       visual.innerHTML = '<div class="empty">Working...</div>';
 
       const payload = {
@@ -493,12 +501,16 @@
         pathCount.textContent = data.paths.length;
         renderPaths(data.paths);
         renderPathRelations(data.path_relations || []);
+        renderConsistencyIssues(data.consistency_issues || []);
         graphSvgs = data.graph_svgs || { [project.entry_graph || "main"]: data.svg };
         renderGraphSelector(project.entry_graph, graphSvgs);
 
         const cycleCount = Object.values(data.cycles).reduce((total, graphCycles) => total + graphCycles.length, 0);
+        const consistencyCount = (data.consistency_issues || []).length;
         if (cycleCount) {
           setMessage(`${cycleCount} cycle(s) detected. Strategy handled them successfully.`, "warn");
+        } else if (consistencyCount) {
+          setMessage(`${consistencyCount} CDFD consistency warning(s) detected.`, "warn");
         } else {
           setMessage("Paths generated successfully.", "");
         }
@@ -509,6 +521,7 @@
         pathCount.textContent = "0";
         paths.innerHTML = '<li class="empty">No paths.</li>';
         pathRelations.innerHTML = '<li class="empty">No relations.</li>';
+        consistencyIssues.innerHTML = '<li class="empty">No consistency checks.</li>';
         visual.innerHTML = '<div class="empty">No graph.</div>';
         graphLayer.innerHTML = '<option value="">-</option>';
         graphLayer.disabled = true;
@@ -563,6 +576,19 @@
           li.textContent += ` | shared: ${item.shared_prefix.join(" -> ")}`;
         }
         pathRelations.appendChild(li);
+      }
+    }
+
+    function renderConsistencyIssues(items) {
+      consistencyIssues.innerHTML = "";
+      if (!items.length) {
+        consistencyIssues.innerHTML = '<li class="empty">No consistency warnings.</li>';
+        return;
+      }
+      for (const item of items) {
+        const li = document.createElement("li");
+        li.textContent = `${item.id}: ${item.message}`;
+        consistencyIssues.appendChild(li);
       }
     }
 

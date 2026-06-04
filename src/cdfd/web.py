@@ -7,7 +7,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from cdfd.consistency import inspect_project_consistency
 from cdfd.exporters import export_analysis, graph_to_dict, paths_to_dicts, project_to_dict, render_svg
+from cdfd.models import model_dump
 from cdfd.multilevel import detect_project_cycles, find_project_paths
 from cdfd.parsers import ParseError, parse_project
 from cdfd.path_groups import build_path_relations
@@ -44,6 +46,7 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
             ends=payload.ends,
         )
         graph = project.entry()
+        consistency_issues = inspect_project_consistency(project)
         cycles = detect_project_cycles(project)
         paths = find_project_paths(
             project,
@@ -66,6 +69,7 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
     return {
         "graph": graph_to_dict(graph),
         "project": project_to_dict(project),
+        "consistency_issues": [model_dump(issue) for issue in consistency_issues],
         "cycles": cycles,
         "paths": paths_to_dicts(paths),
         "path_relations": [

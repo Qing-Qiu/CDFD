@@ -20,6 +20,8 @@ YAML and CSV parser helpers still exist for older examples, but the project form
 
 The machine-readable schema is [docs/cdfd-json-schema.json](docs/cdfd-json-schema.json). JSON project input is validated against this schema before path generation.
 
+Research notes and SOFL/CDFD alignment decisions are in [docs/cdfd-research-notes.md](docs/cdfd-research-notes.md).
+
 ## Install
 
 ```bash
@@ -89,6 +91,7 @@ The web UI accepts JSON files and shows:
 
 - linear paths
 - path relations
+- CDFD-module consistency warnings
 - graph layer visualization
 
 ## Path Definition
@@ -171,6 +174,10 @@ Use `structures` to distinguish branches that cannot be safely inferred from top
 - `join`: paths feed the same output or downstream process.
 
 Use `starts` instead of `start` when the graph has multiple sources, such as an external input and a data store.
+
+## Consistency Warnings
+
+Schema validation checks whether the file has the right JSON shape. Consistency warnings check whether the CDFD and module agree with each other: process specs should match graph input/output flows, data flows should be declared in `module.var`, process nodes should have process specs, and data stores should be connected.
 
 ## Multi-Level CDFD
 

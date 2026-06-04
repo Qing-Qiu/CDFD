@@ -2,7 +2,7 @@
   "schema_version": "cdfd-json-v1",
   "module": {
     "name": "JoinExample",
-    "var": ["x", "left", "right", "combined"],
+    "var": ["x", "left", "right", "l_done", "r_done", "combined"],
     "behav": "Top"
   },
   "processes": [

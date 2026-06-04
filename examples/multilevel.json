@@ -40,8 +40,56 @@
       "inputs": ["z2"],
       "outputs": ["x7"],
       "pre": "s2 == 2",
-      "post": "z3 is derived from z2",
+      "post": "x7 is derived from z2 under s2 == 2",
       "decom": "A33_detail"
+    },
+    {
+      "id": "A12",
+      "inputs": ["x1"],
+      "outputs": ["y1"],
+      "post": "y1 is prepared from x1"
+    },
+    {
+      "id": "A11",
+      "inputs": ["y1"],
+      "outputs": ["y2"],
+      "post": "y2 is derived from y1"
+    },
+    {
+      "id": "A13",
+      "inputs": ["y2"],
+      "outputs": ["x2", "x3"],
+      "post": "x2 and x3 are produced from y2"
+    },
+    {
+      "id": "A31",
+      "inputs": ["x3"],
+      "outputs": ["z1", "z2"],
+      "post": "z1 or z2 is selected from x3"
+    },
+    {
+      "id": "A32",
+      "inputs": ["z1"],
+      "outputs": ["x5"],
+      "post": "x5 is derived from z1"
+    },
+    {
+      "id": "A331",
+      "inputs": ["z2"],
+      "outputs": ["d1", "d2"],
+      "post": "d1 or d2 is selected from z2"
+    },
+    {
+      "id": "A332",
+      "inputs": ["d1"],
+      "outputs": ["z3"],
+      "post": "z3 is derived from d1"
+    },
+    {
+      "id": "A333",
+      "inputs": ["d2"],
+      "outputs": ["x7"],
+      "post": "x7 is derived from d2"
     }
   ],
   "graphs": {
@@ -93,6 +141,9 @@
       "start": "A12",
       "ends": ["A13"],
       "metadata": {
+        "inputs": {
+          "A12": ["x1"]
+        },
         "outputs": {
           "A13": ["x2", "x3"]
         }
@@ -107,6 +158,9 @@
       "start": "A31",
       "ends": ["A32", "A33"],
       "metadata": {
+        "inputs": {
+          "A31": ["x3"]
+        },
         "outputs": {
           "A32": ["x5"],
           "A33": ["x7"]
@@ -133,6 +187,9 @@
       "start": "A331",
       "ends": ["OUT_Z3", "A333"],
       "metadata": {
+        "inputs": {
+          "A331": ["z2"]
+        },
         "outputs": {
           "OUT_Z3": ["z3"],
           "A333": ["x7"]

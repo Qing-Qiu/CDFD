@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from cdfd.consistency import inspect_project_consistency
 from cdfd.exporters import export_analysis
 from cdfd.multilevel import detect_project_cycles, find_project_paths
 from cdfd.parsers import ParseError, infer_format, parse_project
@@ -20,6 +21,7 @@ def main(argv: list[str] | None = None) -> int:
         input_format = infer_format(input_path) if args.format == "auto" else args.format
         content = input_path.read_text(encoding="utf-8")
         project = parse_project(content, input_format, start=args.start, ends=args.ends)
+        consistency_issues = inspect_project_consistency(project)
         cycles = detect_project_cycles(project)
         paths = find_project_paths(
             project,
@@ -36,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
             graph=project.entry() if args.no_expand else None,
             graph_name=project.entry_graph if not args.no_expand else None,
         )
+        if consistency_issues:
+            _print_consistency_issues(consistency_issues)
         if cycles:
             _print_cycles(cycles)
         print(export_analysis(paths, path_relations, args.output_format))
@@ -89,6 +93,12 @@ def _print_cycles(cycles: dict[str, list[list[str]]]) -> None:
     for graph_name, graph_cycles in cycles.items():
         for cycle in graph_cycles:
             print(f"  {graph_name}: {' -> '.join(cycle)}", file=sys.stderr)
+
+
+def _print_consistency_issues(issues) -> None:
+    print(f"Warning: {len(issues)} CDFD consistency issue(s) detected.", file=sys.stderr)
+    for issue in issues:
+        print(f"  {issue.id} [{issue.rule}]: {issue.message}", file=sys.stderr)
 
 
 if __name__ == "__main__":

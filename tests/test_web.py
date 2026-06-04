@@ -18,14 +18,21 @@ def test_web_analyze_endpoint():
             "content": """
             {
               "schema_version": "cdfd-json-v1",
-              "module": {"behav": "Top"},
-              "processes": [],
+              "module": {"var": ["x"], "behav": "Top"},
+              "processes": [{"id": "A", "inputs": ["x"], "outputs": ["x"]}],
               "graphs": {
                 "Top": {
-                  "start": "A",
+                  "start": "IN",
                   "ends": ["B"],
-                  "nodes": ["A", "B"],
-                  "edges": [{"from": "A", "to": "B"}]
+                  "nodes": [
+                    {"id": "IN", "type": "external"},
+                    {"id": "A", "type": "process"},
+                    {"id": "B", "type": "external"}
+                  ],
+                  "edges": [
+                    {"from": "IN", "to": "A", "data": ["x"]},
+                    {"from": "A", "to": "B", "data": ["x"]}
+                  ]
                 }
               }
             }
@@ -34,8 +41,49 @@ def test_web_analyze_endpoint():
     )
 
     assert response.status_code == 200
-    assert response.json()["paths"][0]["nodes"] == ["A", "B"]
+    assert response.json()["paths"][0]["nodes"] == ["IN", "A", "B"]
     assert response.json()["paths"][0]["id"] == "P1"
+    assert response.json()["consistency_issues"] == []
+
+
+def test_web_analyze_reports_cdfd_module_consistency_warnings():
+    from fastapi.testclient import TestClient
+
+    from cdfd.web import app
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/analyze",
+        json={
+            "input_format": "json",
+            "content": """
+            {
+              "schema_version": "cdfd-json-v1",
+              "module": {"var": ["x"], "behav": "Top"},
+              "processes": [],
+              "graphs": {
+                "Top": {
+                  "start": "IN",
+                  "ends": ["OUT"],
+                  "nodes": [
+                    {"id": "IN", "type": "external"},
+                    {"id": "A", "type": "process"},
+                    {"id": "OUT", "type": "external"}
+                  ],
+                  "edges": [
+                    {"from": "IN", "to": "A", "data": ["x"]},
+                    {"from": "A", "to": "OUT", "data": ["y"]}
+                  ]
+                }
+              }
+            }
+            """,
+        },
+    )
+
+    assert response.status_code == 200
+    rules = [issue["rule"] for issue in response.json()["consistency_issues"]]
+    assert rules == ["undeclared-data-flow", "missing-process-spec"]
 
 
 def test_web_analyze_rejects_json_that_does_not_match_project_schema():

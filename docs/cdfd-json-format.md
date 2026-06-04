@@ -2,7 +2,7 @@
 
 This project currently accepts CDFD input as JSON. A valid file describes one CDFD project: module data, process specifications, graph layers, data/control flows, and explicit CDFD structures.
 
-The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json). JSON project input is validated against this schema before path generation.
+The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json). JSON project input is validated against this schema before path generation. See [cdfd-research-notes.md](cdfd-research-notes.md) for the SOFL/CDFD references that guide this format.
 
 ## Path Definition
 
@@ -139,6 +139,18 @@ Supported structure kinds:
 - `join`, `merge`: branches feed the same output or downstream process.
 
 Each branch can match paths by `edges`, `nodes`, `data`, `source`, `target`, or `condition`.
+
+## Consistency Checks
+
+After schema validation, the tool reports CDFD-module consistency warnings. These warnings are based on the SOFL idea that a CDFD and its associated module should describe the same processes, data flows, and stores.
+
+Current warnings include:
+
+- process nodes without process specifications;
+- process specifications that are not used in any CDFD graph;
+- process input/output lists that do not match graph data flows;
+- data flows that are not declared in `module.var`;
+- disconnected data stores.
 
 ## Minimal Complete Example
 

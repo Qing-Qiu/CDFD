@@ -2,7 +2,7 @@
   "schema_version": "cdfd-json-v1",
   "module": {
     "name": "ChoiceExample",
-    "var": ["x", "ok", "err"],
+    "var": ["x", "ok", "err", "accepted", "rejected", "valid"],
     "behav": "Top"
   },
   "processes": [
