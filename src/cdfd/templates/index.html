@@ -412,6 +412,12 @@
               </ol>
             </div>
             <div>
+              <div class="list-title">Functional scenarios</div>
+              <ol id="functionalScenarios" class="path-list group-list">
+                <li class="empty">Run the generator to see scenarios.</li>
+              </ol>
+            </div>
+            <div>
               <div class="list-title">CDFD consistency</div>
               <ol id="consistencyIssues" class="path-list group-list">
                 <li class="empty">Run the generator to see consistency checks.</li>
@@ -443,6 +449,7 @@
     const message = document.getElementById("message");
     const paths = document.getElementById("paths");
     const pathRelations = document.getElementById("pathRelations");
+    const functionalScenarios = document.getElementById("functionalScenarios");
     const consistencyIssues = document.getElementById("consistencyIssues");
     const visual = document.getElementById("visual");
     const nodeCount = document.getElementById("nodeCount");
@@ -462,6 +469,7 @@
       setMessage("Generating paths.", "");
       paths.innerHTML = "";
       pathRelations.innerHTML = "";
+      functionalScenarios.innerHTML = "";
       consistencyIssues.innerHTML = "";
       visual.innerHTML = '<div class="empty">Working...</div>';
 
@@ -501,6 +509,7 @@
         pathCount.textContent = data.paths.length;
         renderPaths(data.paths);
         renderPathRelations(data.path_relations || []);
+        renderFunctionalScenarios(data.functional_scenarios || []);
         renderConsistencyIssues(data.consistency_issues || []);
         graphSvgs = data.graph_svgs || { [project.entry_graph || "main"]: data.svg };
         renderGraphSelector(project.entry_graph, graphSvgs);
@@ -521,6 +530,7 @@
         pathCount.textContent = "0";
         paths.innerHTML = '<li class="empty">No paths.</li>';
         pathRelations.innerHTML = '<li class="empty">No relations.</li>';
+        functionalScenarios.innerHTML = '<li class="empty">No scenarios.</li>';
         consistencyIssues.innerHTML = '<li class="empty">No consistency checks.</li>';
         visual.innerHTML = '<div class="empty">No graph.</div>';
         graphLayer.innerHTML = '<option value="">-</option>';
@@ -576,6 +586,24 @@
           li.textContent += ` | shared: ${item.shared_prefix.join(" -> ")}`;
         }
         pathRelations.appendChild(li);
+      }
+    }
+
+    function renderFunctionalScenarios(items) {
+      functionalScenarios.innerHTML = "";
+      if (!items.length) {
+        functionalScenarios.innerHTML = '<li class="empty">No functional scenarios.</li>';
+        return;
+      }
+      for (const item of items) {
+        const li = document.createElement("li");
+        const inputs = item.input_data.length ? item.input_data.join(", ") : "-";
+        const outputs = item.output_data.length ? item.output_data.join(", ") : "-";
+        const operations = item.operations.length
+          ? item.operations.map((operation) => operation.process).join(" -> ")
+          : "-";
+        li.textContent = `${item.id}: ${item.path_ids.join(", ")} | ${inputs} => ${outputs} | ops: ${operations}`;
+        functionalScenarios.appendChild(li);
       }
     }
 

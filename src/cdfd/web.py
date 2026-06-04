@@ -8,12 +8,20 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from cdfd.consistency import inspect_project_consistency
-from cdfd.exporters import export_analysis, graph_to_dict, paths_to_dicts, project_to_dict, render_svg
+from cdfd.exporters import (
+    export_analysis,
+    graph_to_dict,
+    paths_to_dicts,
+    project_to_dict,
+    render_svg,
+    scenarios_to_dicts,
+)
 from cdfd.models import model_dump
 from cdfd.multilevel import detect_project_cycles, find_project_paths
 from cdfd.parsers import ParseError, parse_project
 from cdfd.path_groups import build_path_relations
 from cdfd.path_finder import PathFindingOptions, PathLimitExceeded
+from cdfd.scenarios import build_functional_scenarios
 
 
 class AnalyzeRequest(BaseModel):
@@ -63,6 +71,7 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
             graph=project.entry() if not payload.expand else None,
             graph_name=project.entry_graph if payload.expand else None,
         )
+        functional_scenarios = build_functional_scenarios(paths, project=project)
     except (ParseError, ValueError, PathLimitExceeded) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -72,11 +81,12 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
         "consistency_issues": [model_dump(issue) for issue in consistency_issues],
         "cycles": cycles,
         "paths": paths_to_dicts(paths),
+        "functional_scenarios": scenarios_to_dicts(functional_scenarios),
         "path_relations": [
             relation.model_dump() if hasattr(relation, "model_dump") else relation.dict()
             for relation in path_relations
         ],
-        "text": export_analysis(paths, path_relations, "text"),
+        "text": export_analysis(paths, path_relations, "text", functional_scenarios),
         "svg": render_svg(graph, paths, graph_name=project.entry_graph),
         "graph_svgs": {
             name: render_svg(project_graph, paths, graph_name=name)

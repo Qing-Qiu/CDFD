@@ -12,8 +12,9 @@ The generator reports:
 
 - `paths`: individual source-to-sink traces.
 - `path_relations`: relationships between paths, such as `parallel`, `exclusive`, or `joined-output`.
+- `functional_scenarios`: inspection-oriented units derived from paths and process specifications.
 
-Parallel paths remain separate paths. The relation records that they can be considered independent or simultaneous. A future functional-scenario layer can combine paths and relations, but this JSON output keeps those concepts separate.
+Parallel paths remain separate paths. The relation records that they can be considered independent or simultaneous. Functional scenarios keep a separate layer: each scenario references one or more path ids and adds process-specification context.
 
 Each path in JSON output includes:
 
@@ -21,6 +22,14 @@ Each path in JSON output includes:
 - `source` and `sink`: the first and last node in the trace.
 - `route`: human-readable route with data labels.
 - `nodes`, `edges`, `data`, `outputs`, `preconditions`, and `conditions`: structured path details.
+
+Each functional scenario includes:
+
+- `id`: stable display id such as `FS1`.
+- `path_ids`: the path or paths the scenario is derived from.
+- `input_data` and `output_data`: the input/output relation being inspected.
+- `operations`: process specifications involved in the scenario.
+- `preconditions`, `postconditions`, and `conditions`: formal or semi-formal constraints collected from the process specs and path.
 
 ## Top-Level Object
 

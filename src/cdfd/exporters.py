@@ -7,7 +7,7 @@ from collections import defaultdict, deque
 from io import StringIO
 from typing import Iterable
 
-from cdfd.models import CDFDGraph, CDFDProject, PathRelation, PathResult, model_dump
+from cdfd.models import CDFDGraph, CDFDProject, FunctionalScenario, PathRelation, PathResult, model_dump
 
 NODE_WIDTH = 150
 NODE_HEIGHT = 48
@@ -31,20 +31,27 @@ def export_paths(paths: list[PathResult], output_format: str) -> str:
     raise ValueError(f"Unsupported output format: {output_format}")
 
 
-def export_analysis(paths: list[PathResult], path_relations: list[PathRelation], output_format: str) -> str:
+def export_analysis(
+    paths: list[PathResult],
+    path_relations: list[PathRelation],
+    output_format: str,
+    functional_scenarios: list[FunctionalScenario] | None = None,
+) -> str:
     fmt = output_format.lower()
     if fmt == "json":
-        return json.dumps(
-            {
-                "paths": paths_to_dicts(paths),
-                "path_relations": [model_dump(relation) for relation in path_relations],
-            },
-            indent=2,
-        )
+        payload = {
+            "paths": paths_to_dicts(paths),
+            "path_relations": [model_dump(relation) for relation in path_relations],
+        }
+        if functional_scenarios is not None:
+            payload["functional_scenarios"] = scenarios_to_dicts(functional_scenarios)
+        return json.dumps(payload, indent=2)
     if fmt == "text":
-        return _append_text_relations(_export_text(paths), path_relations)
+        text = _append_text_relations(_export_text(paths), path_relations)
+        return _append_text_scenarios(text, functional_scenarios or [])
     if fmt == "markdown":
-        return _append_markdown_relations(_export_markdown(paths), path_relations)
+        markdown = _append_markdown_relations(_export_markdown(paths), path_relations)
+        return _append_markdown_scenarios(markdown, functional_scenarios or [])
     if fmt == "csv":
         return _export_csv(paths)
     raise ValueError(f"Unsupported output format: {output_format}")
@@ -52,6 +59,10 @@ def export_analysis(paths: list[PathResult], path_relations: list[PathRelation],
 
 def paths_to_dicts(paths: list[PathResult]) -> list[dict[str, object]]:
     return [_path_to_dict(path, index) for index, path in enumerate(paths, start=1)]
+
+
+def scenarios_to_dicts(scenarios: list[FunctionalScenario]) -> list[dict[str, object]]:
+    return [model_dump(scenario) for scenario in scenarios]
 
 
 def _path_to_dict(path: PathResult, index: int) -> dict[str, object]:
@@ -237,6 +248,43 @@ def _append_markdown_relations(markdown: str, path_relations: list[PathRelation]
         connector = " || " if relation.kind == "parallel" else " + "
         lines.append(
             f"| {relation.id} | {relation.kind} | {connector.join(relation.path_ids)} | {outputs} | {shared_prefix} |"
+        )
+    return "\n".join(lines)
+
+
+def _append_text_scenarios(text: str, scenarios: list[FunctionalScenario]) -> str:
+    if not scenarios:
+        return text
+
+    lines = [text, "", "Functional Scenarios:"]
+    for scenario in scenarios:
+        path_text = ", ".join(scenario.path_ids)
+        input_text = ", ".join(scenario.input_data) if scenario.input_data else "-"
+        output_text = ", ".join(scenario.output_data) if scenario.output_data else "-"
+        lines.append(f"{scenario.id}: {path_text} | {input_text} => {output_text}")
+        if scenario.description:
+            lines.append(f"  {scenario.description}")
+        if scenario.postconditions:
+            lines.append(f"  Postconditions: {'; '.join(scenario.postconditions)}")
+    return "\n".join(lines)
+
+
+def _append_markdown_scenarios(markdown: str, scenarios: list[FunctionalScenario]) -> str:
+    if not scenarios:
+        return markdown
+
+    lines = [
+        markdown,
+        "",
+        "| Scenario | Paths | Input Data | Output Data | Operations |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for scenario in scenarios:
+        inputs = ", ".join(scenario.input_data) if scenario.input_data else "-"
+        outputs = ", ".join(scenario.output_data) if scenario.output_data else "-"
+        operations = " -> ".join(operation.process for operation in scenario.operations) or "-"
+        lines.append(
+            f"| {scenario.id} | {', '.join(scenario.path_ids)} | {inputs} | {outputs} | {operations} |"
         )
     return "\n".join(lines)
 

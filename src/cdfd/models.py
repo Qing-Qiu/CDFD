@@ -100,6 +100,30 @@ class ConsistencyIssue(BaseModel):
     data: list[str] = Field(default_factory=list)
 
 
+class ScenarioOperation(BaseModel):
+    process: str
+    inputs: list[str] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
+    pre: str | None = None
+    post: str | None = None
+
+
+class FunctionalScenario(BaseModel):
+    id: str
+    kind: str = "single-path"
+    path_ids: list[str] = Field(default_factory=list)
+    source: str | None = None
+    sink: str | None = None
+    input_data: list[str] = Field(default_factory=list)
+    output_data: list[str] = Field(default_factory=list)
+    operations: list[ScenarioOperation] = Field(default_factory=list)
+    data: list[str] = Field(default_factory=list)
+    preconditions: list[str] = Field(default_factory=list)
+    postconditions: list[str] = Field(default_factory=list)
+    conditions: list[str] = Field(default_factory=list)
+    description: str | None = None
+
+
 class PathGroup(PathRelation):
     """Backward-compatible name for older callers."""
 

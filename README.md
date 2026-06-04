@@ -58,6 +58,8 @@ Output JSON analysis:
 python -m cdfd.cli examples/cdfd_v1.json --output-format json
 ```
 
+The JSON analysis contains `paths`, `path_relations`, and `functional_scenarios`.
+
 JSON output gives each path a display id and endpoints:
 
 ```json
@@ -91,6 +93,7 @@ The web UI accepts JSON files and shows:
 
 - linear paths
 - path relations
+- functional scenarios
 - CDFD-module consistency warnings
 - graph layer visualization
 
@@ -110,7 +113,11 @@ Parallel paths are still separate paths. The relation between them is reported s
 R1 (parallel): P1 || P2
 ```
 
-This keeps `paths` and functional scenarios separate. The tool currently generates atomic paths plus path relations, not full functional scenarios.
+This keeps `paths` and functional scenarios separate. The tool reports atomic paths first, then derives functional scenarios as inspection-oriented wrappers around those paths.
+
+## Functional Scenarios
+
+A functional scenario is derived from a path but is not the raw path itself. It wraps a path id with the related process specifications, input/output data, preconditions, postconditions, and edge conditions. This follows the SOFL/CDFD idea that scenarios are useful inspection or animation units built from CDFD data-flow paths.
 
 ## JSON Format
 
