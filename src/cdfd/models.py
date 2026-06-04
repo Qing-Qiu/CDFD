@@ -53,6 +53,7 @@ class CDFDGraph(BaseModel):
     nodes: dict[str, Node]
     edges: list[Edge]
     start: str
+    starts: set[str] = Field(default_factory=set)
     ends: set[str]
     structures: list[GraphStructure] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)

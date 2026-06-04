@@ -18,6 +18,8 @@ CDFD means **Condition Data Flow Diagram**. In this project, a CDFD file contain
 
 YAML and CSV parser helpers still exist for older examples, but the project format for the assignment is JSON. See [docs/cdfd-json-format.md](docs/cdfd-json-format.md).
 
+The machine-readable schema is [docs/cdfd-json-schema.json](docs/cdfd-json-schema.json).
+
 ## Install
 
 ```bash
@@ -31,6 +33,14 @@ Generate paths from the canonical JSON example:
 
 ```bash
 python -m cdfd.cli examples/cdfd_v1.json
+```
+
+Other JSON examples:
+
+```bash
+python -m cdfd.cli examples/choice.json
+python -m cdfd.cli examples/join.json
+python -m cdfd.cli examples/data_store.json
 ```
 
 Generate expanded paths from a multi-level CDFD:
@@ -109,7 +119,7 @@ Minimal project shape:
   ],
   "graphs": {
     "Top": {
-      "start": "IN",
+      "starts": ["IN"],
       "ends": ["OUT_X4", "OUT_X5"],
       "nodes": [
         { "id": "IN", "type": "external" },
@@ -147,6 +157,8 @@ Use `structures` to distinguish branches that cannot be safely inferred from top
 - `parallel`: paths can be related as independent/parallel.
 - `choice`: paths are alternatives, not parallel.
 - `join`: paths feed the same output or downstream process.
+
+Use `starts` instead of `start` when the graph has multiple sources, such as an external input and a data store.
 
 ## Multi-Level CDFD
 

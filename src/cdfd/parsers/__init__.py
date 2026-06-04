@@ -256,7 +256,9 @@ def _graph_from_mapping(
             nodes.setdefault(edge.source, Node(id=edge.source))
             nodes.setdefault(edge.target, Node(id=edge.target))
 
-    start = start_override or data.get("start")
+    raw_starts = start_override if start_override is not None else data.get("starts", data.get("start"))
+    starts = set(_coerce_id_list(raw_starts, "starts"))
+    start = next(iter(starts), None) if len(starts) == 1 else _optional_str(data.get("start"))
     raw_ends = ends_override if ends_override is not None else data.get("ends", data.get("end"))
     ends = set(_coerce_id_list(raw_ends, "ends"))
 
@@ -265,6 +267,7 @@ def _graph_from_mapping(
         nodes=nodes,
         edges=edges,
         start=start,
+        starts=starts,
         ends=ends,
         structures=structures,
         metadata=metadata,
@@ -528,10 +531,19 @@ def _graph_from_csv(
             )
         )
 
-    for node_id in [node_id for node_id in [start, *coerced_ends] if node_id]:
+    starts = set(_coerce_id_list(start, "starts"))
+    for node_id in [node_id for node_id in [*starts, *coerced_ends] if node_id]:
         nodes.setdefault(node_id, Node(id=node_id))
 
-    return _build_graph(nodes=nodes, edges=edges, start=start, ends=coerced_ends, structures=[], metadata={})
+    return _build_graph(
+        nodes=nodes,
+        edges=edges,
+        start=next(iter(starts), None),
+        starts=starts,
+        ends=coerced_ends,
+        structures=[],
+        metadata={},
+    )
 
 
 def _build_graph(
@@ -539,21 +551,30 @@ def _build_graph(
     nodes: dict[str, Node],
     edges: list[Edge],
     start: str | None,
+    starts: set[str],
     ends: set[str],
     structures: list[GraphStructure],
     metadata: dict[str, Any],
 ) -> CDFDGraph:
-    if not start:
-        start = _infer_start(nodes, edges)
+    if start:
+        starts.add(start)
+    if not starts:
+        starts = set(_infer_starts(nodes, edges))
+    if not start and starts:
+        start = sorted(starts)[0]
     if not ends:
         ends = set(_infer_ends(nodes, edges))
 
     if not start:
         raise ParseError("CDFD input must define a start node.")
+    if not starts:
+        raise ParseError("CDFD input must define at least one start node.")
     if not ends:
         raise ParseError("CDFD input must define at least one end node.")
-    if start not in nodes:
-        raise ParseError(f"Start node '{start}' is not defined in nodes.")
+
+    missing_starts = sorted(start for start in starts if start not in nodes)
+    if missing_starts:
+        raise ParseError(f"Start node(s) not defined in nodes: {', '.join(missing_starts)}")
 
     missing_ends = sorted(end for end in ends if end not in nodes)
     if missing_ends:
@@ -567,7 +588,15 @@ def _build_graph(
 
     _validate_structures(structures, nodes, edges)
 
-    return CDFDGraph(nodes=nodes, edges=edges, start=start, ends=ends, structures=structures, metadata=metadata)
+    return CDFDGraph(
+        nodes=nodes,
+        edges=edges,
+        start=start,
+        starts=starts,
+        ends=ends,
+        structures=structures,
+        metadata=metadata,
+    )
 
 
 def _validate_structures(
@@ -599,17 +628,12 @@ def _validate_structures(
                     )
 
 
-def _infer_start(nodes: dict[str, Node], edges: list[Edge]) -> str:
+def _infer_starts(nodes: dict[str, Node], edges: list[Edge]) -> list[str]:
     incoming, outgoing = _degree_maps(nodes, edges)
     candidates = sorted(node_id for node_id in nodes if incoming[node_id] == 0 and outgoing[node_id] > 0)
-    if len(candidates) == 1:
-        return candidates[0]
-    if not candidates:
-        raise ParseError("CDFD input must define a start node; automatic detection found no source-only node.")
-    raise ParseError(
-        "CDFD input must define a start node; automatic detection found multiple candidates: "
-        + ", ".join(candidates)
-    )
+    if candidates:
+        return candidates
+    raise ParseError("CDFD input must define start node(s); automatic detection found no source-only node.")
 
 
 def _infer_ends(nodes: dict[str, Node], edges: list[Edge]) -> list[str]:

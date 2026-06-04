@@ -2,6 +2,8 @@
 
 This project currently accepts CDFD input as JSON. A valid file describes one CDFD project: module data, process specifications, graph layers, data/control flows, and explicit CDFD structures.
 
+The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json).
+
 ## Path Definition
 
 A path is a directed trace from a graph input/source node to an output/sink node through CDFD edges.
@@ -64,7 +66,7 @@ Fields:
 
 ```json
 {
-  "start": "IN",
+  "starts": ["IN"],
   "ends": ["OUT_X6"],
   "nodes": [],
   "edges": [],
@@ -72,7 +74,7 @@ Fields:
 }
 ```
 
-`start` and `ends` can be inferred for simple acyclic graphs, but explicit values are preferred for CDFD project files.
+Use `start` for a single source and `starts` for multiple sources. For example, a process may depend on both an external input and a data store. `start`/`starts` and `ends` can be inferred for simple acyclic graphs, but explicit values are preferred for CDFD project files.
 
 ## Node
 

@@ -53,6 +53,7 @@ def export_analysis(paths: list[PathResult], path_relations: list[PathRelation],
 def graph_to_dict(graph: CDFDGraph) -> dict[str, object]:
     return {
         "start": graph.start,
+        "starts": sorted(graph.starts),
         "ends": sorted(graph.ends),
         "nodes": [model_dump(node) for node in graph.nodes.values()],
         "edges": [model_dump(edge) for edge in graph.edges],
@@ -310,7 +311,7 @@ def _shift_into_view(positions: dict[str, tuple[int, int]]) -> dict[str, tuple[i
 
 
 def _node_fill(graph: CDFDGraph, node_id: str, node_type: str) -> str:
-    if node_id == graph.start:
+    if node_id in (graph.starts or {graph.start}):
         return "#d8f3dc"
     if node_id in graph.ends:
         return "#ffe8cc"

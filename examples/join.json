@@ -1,0 +1,47 @@
+{
+  "schema_version": "cdfd-json-v1",
+  "module": {
+    "name": "JoinExample",
+    "var": ["x", "left", "right", "combined"],
+    "behav": "Top"
+  },
+  "processes": [
+    { "id": "Split", "inputs": ["x"], "outputs": ["left", "right"] },
+    { "id": "L", "inputs": ["left"], "outputs": ["l_done"] },
+    { "id": "R", "inputs": ["right"], "outputs": ["r_done"] },
+    { "id": "Combine", "inputs": ["l_done", "r_done"], "outputs": ["combined"] }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "IN",
+      "ends": ["OUT"],
+      "nodes": [
+        { "id": "IN", "type": "external" },
+        { "id": "Split", "type": "process" },
+        { "id": "L", "type": "process" },
+        { "id": "R", "type": "process" },
+        { "id": "Combine", "type": "process" },
+        { "id": "OUT", "type": "external" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "IN", "to": "Split", "data": ["x"] },
+        { "id": "e2", "from": "Split", "to": "L", "data": ["left"] },
+        { "id": "e3", "from": "Split", "to": "R", "data": ["right"] },
+        { "id": "e4", "from": "L", "to": "Combine", "data": ["l_done"] },
+        { "id": "e5", "from": "R", "to": "Combine", "data": ["r_done"] },
+        { "id": "e6", "from": "Combine", "to": "OUT", "data": ["combined"] }
+      ],
+      "structures": [
+        {
+          "id": "join_Combine",
+          "kind": "join",
+          "target": "Combine",
+          "branches": [
+            { "id": "left_branch", "edges": ["e2", "e4", "e6"] },
+            { "id": "right_branch", "edges": ["e3", "e5", "e6"] }
+          ]
+        }
+      ]
+    }
+  }
+}

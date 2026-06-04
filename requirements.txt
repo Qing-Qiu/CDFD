@@ -4,3 +4,4 @@ pydantic>=2
 PyYAML>=6
 Jinja2>=3
 pytest>=8
+jsonschema>=4

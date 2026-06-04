@@ -1,0 +1,50 @@
+{
+  "schema_version": "cdfd-json-v1",
+  "module": {
+    "name": "ChoiceExample",
+    "var": ["x", "ok", "err"],
+    "behav": "Top"
+  },
+  "processes": [
+    {
+      "id": "Check",
+      "inputs": ["x"],
+      "outputs": ["ok", "err"],
+      "post": "exactly one output is produced"
+    },
+    { "id": "Accept", "inputs": ["ok"], "outputs": ["accepted"] },
+    { "id": "Reject", "inputs": ["err"], "outputs": ["rejected"] }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "IN",
+      "ends": ["OUT_OK", "OUT_ERR"],
+      "nodes": [
+        { "id": "IN", "type": "external", "label": "Input x" },
+        { "id": "Check", "type": "process" },
+        { "id": "Accept", "type": "process" },
+        { "id": "Reject", "type": "process" },
+        { "id": "OUT_OK", "type": "external", "label": "Accepted" },
+        { "id": "OUT_ERR", "type": "external", "label": "Rejected" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "IN", "to": "Check", "data": ["x"] },
+        { "id": "e2", "from": "Check", "to": "Accept", "data": ["ok"], "condition": "valid == true" },
+        { "id": "e3", "from": "Check", "to": "Reject", "data": ["err"], "condition": "valid == false" },
+        { "id": "e4", "from": "Accept", "to": "OUT_OK", "data": ["accepted"] },
+        { "id": "e5", "from": "Reject", "to": "OUT_ERR", "data": ["rejected"] }
+      ],
+      "structures": [
+        {
+          "id": "choice_Check",
+          "kind": "choice",
+          "source": "Check",
+          "branches": [
+            { "id": "valid", "edges": ["e2", "e4"], "condition": "valid == true" },
+            { "id": "invalid", "edges": ["e3", "e5"], "condition": "valid == false" }
+          ]
+        }
+      ]
+    }
+  }
+}

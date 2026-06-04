@@ -332,34 +332,54 @@
           <label for="content">CDFD content</label>
           <textarea id="content" spellcheck="false">{
   "schema_version": "cdfd-json-v1",
-  "start": "IN",
-  "ends": ["OUT_X4", "OUT_X5"],
-  "nodes": [
-    { "id": "IN", "type": "external", "label": "Input" },
-    { "id": "A", "type": "process" },
-    { "id": "B", "type": "process" },
-    { "id": "C", "type": "process" },
-    { "id": "OUT_X4", "type": "external", "label": "Output x4" },
-    { "id": "OUT_X5", "type": "external", "label": "Output x5" }
-  ],
-  "edges": [
-    { "id": "e1", "from": "IN", "to": "A", "data": ["x1"] },
-    { "id": "e2", "from": "A", "to": "B", "data": ["x2"] },
-    { "id": "e3", "from": "A", "to": "C", "data": ["x3"] },
-    { "id": "e4", "from": "B", "to": "OUT_X4", "data": ["x4"] },
-    { "id": "e5", "from": "C", "to": "OUT_X5", "data": ["x5"] }
-  ],
-  "structures": [
+  "module": {
+    "name": "ParallelExample",
+    "var": ["x1", "x2", "x3", "x4", "x5"],
+    "behav": "Top"
+  },
+  "processes": [
     {
-      "id": "par_A",
-      "kind": "parallel",
-      "source": "A",
-      "branches": [
-        { "id": "x4_branch", "edges": ["e2", "e4"] },
-        { "id": "x5_branch", "edges": ["e3", "e5"] }
+      "id": "A",
+      "inputs": ["x1"],
+      "outputs": ["x2", "x3"],
+      "pre": "x1 is available",
+      "post": "x2 and x3 are derived from x1"
+    },
+    { "id": "B", "inputs": ["x2"], "outputs": ["x4"] },
+    { "id": "C", "inputs": ["x3"], "outputs": ["x5"] }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "IN",
+      "ends": ["OUT_X4", "OUT_X5"],
+      "nodes": [
+        { "id": "IN", "type": "external", "label": "Input" },
+        { "id": "A", "type": "process" },
+        { "id": "B", "type": "process" },
+        { "id": "C", "type": "process" },
+        { "id": "OUT_X4", "type": "external", "label": "Output x4" },
+        { "id": "OUT_X5", "type": "external", "label": "Output x5" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "IN", "to": "A", "data": ["x1"] },
+        { "id": "e2", "from": "A", "to": "B", "data": ["x2"] },
+        { "id": "e3", "from": "A", "to": "C", "data": ["x3"] },
+        { "id": "e4", "from": "B", "to": "OUT_X4", "data": ["x4"] },
+        { "id": "e5", "from": "C", "to": "OUT_X5", "data": ["x5"] }
+      ],
+      "structures": [
+        {
+          "id": "par_A",
+          "kind": "parallel",
+          "source": "A",
+          "branches": [
+            { "id": "x4_branch", "edges": ["e2", "e4"] },
+            { "id": "x5_branch", "edges": ["e3", "e5"] }
+          ]
+        }
       ]
     }
-  ]
+  }
 }</textarea>
         </div>
 

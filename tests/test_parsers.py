@@ -125,12 +125,15 @@ def test_parse_json_graph_with_explicit_structures():
     assert graph.structures[0].branches[1].edges == ["e2", "e4"]
 
 
-def test_parse_requires_start_when_auto_detection_is_ambiguous():
-    with pytest.raises(ParseError, match="multiple candidates"):
-        parse_cdfd(
-            "from,to\nA,C\nB,C\n",
-            "csv",
-        )
+def test_parse_infers_multiple_starts_when_sources_are_unambiguous():
+    graph = parse_cdfd(
+        "from,to\nA,C\nB,C\n",
+        "csv",
+    )
+
+    assert graph.starts == {"A", "B"}
+    assert graph.start == "A"
+    assert graph.ends == {"C"}
 
 
 def test_parse_rejects_structure_referencing_missing_edge():

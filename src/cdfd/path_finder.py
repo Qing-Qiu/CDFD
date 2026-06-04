@@ -68,7 +68,8 @@ def find_paths(
                 depth + 1,
             )
 
-    dfs(graph.start, [graph.start], [], [], [], 0)
+    for start in sorted(graph.starts or {graph.start}):
+        dfs(start, [start], [], [], [], 0)
     return sorted(paths, key=lambda path: (len(path.nodes), path.nodes, path.edges))
 
 
