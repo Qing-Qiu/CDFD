@@ -6,7 +6,7 @@ The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json). J
 
 ## Path Definition
 
-A path is a directed trace from a graph input/source node to an output/sink node through CDFD edges. It is an atomic data-flow trace, not a full functional scenario.
+A path is a directed trace from a graph input/source node to an output/sink node through CDFD data-flow edges. It is an atomic data-flow trace, not a full functional scenario. Control/state edges are not path segments; they contribute conditions to the path when they point to a process on that path.
 
 The generator reports:
 
@@ -90,7 +90,7 @@ Fields:
 }
 ```
 
-Use `start` for a single source and `starts` for multiple sources. For example, a process may depend on both an external input and a data store. `start`/`starts` and `ends` can be inferred for simple acyclic graphs, but explicit values are preferred for CDFD project files.
+Use `start` for a single source and `starts` for multiple sources. For example, a process may depend on both an external input and a data store. `start`/`starts` and `ends` can be inferred for simple acyclic graphs, but explicit values are preferred for CDFD project files. Automatic inference uses data-flow edges only, so state/control nodes such as `s1` are not treated as path starts.
 
 ## Node
 
@@ -122,7 +122,7 @@ Common node types:
 `kind` values:
 
 - `flow`: normal active data flow.
-- `control`: control or state condition flow, rendered as dashed in the Web UI.
+- `control`: control or state condition flow, rendered as dashed in the Web UI and collected as a path condition rather than traversed as a path edge.
 - `shadow`: placeholder flow carrying presence/absence information.
 
 ## Structure

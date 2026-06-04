@@ -143,6 +143,48 @@ def test_no_expand_keeps_top_level_processes():
     assert [path.nodes for path in paths] == [["A1", "A2"]]
 
 
+def test_multilevel_expansion_preserves_parent_control_conditions():
+    project = parse_project(
+        """
+        {
+          "schema_version": "cdfd-json-v1",
+          "module": {"behav": "Top"},
+          "processes": [{"id": "A1", "decom": "A1_detail"}],
+          "graphs": {
+            "Top": {
+              "starts": ["IN"],
+              "ends": ["OUT"],
+              "nodes": [
+                {"id": "IN", "type": "external"},
+                {"id": "S1", "type": "state"},
+                {"id": "A1", "type": "process"},
+                {"id": "OUT", "type": "external"}
+              ],
+              "edges": [
+                {"id": "e0", "from": "IN", "to": "A1", "data": ["x1"]},
+                {"id": "c1", "from": "S1", "to": "A1", "kind": "control", "condition": "s1 == 1"},
+                {"id": "e1", "from": "A1", "to": "OUT", "data": ["x2"]}
+              ]
+            },
+            "A1_detail": {
+              "starts": ["A11"],
+              "ends": ["A12"],
+              "nodes": ["A11", "A12"],
+              "edges": [{"id": "d1", "from": "A11", "to": "A12", "data": ["y1"]}]
+            }
+          }
+        }
+        """,
+        "json",
+    )
+
+    paths = find_project_paths(project)
+
+    assert paths[0].nodes == ["IN", "A11", "A12", "OUT"]
+    assert "Top:c1" not in paths[0].edges
+    assert paths[0].conditions == ["s1 == 1"]
+
+
 def test_rejects_missing_decomposition_graph():
     with pytest.raises(ParseError):
         parse_project(

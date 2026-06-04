@@ -12,7 +12,7 @@ CDFD means **Condition Data Flow Diagram**. In this project, a CDFD file contain
 - simple-path cycle handling
 - max-depth cycle handling
 - multi-level process decomposition
-- data-flow labels such as `x1`, `x6`, `y1`, and state/precondition labels such as `s1`
+- data-flow labels such as `x1`, `x6`, `y1`, plus state/precondition labels such as `s1`
 - path relations for parallel, exclusive, and joined-output paths
 - text, JSON, CSV, and Markdown outputs
 
@@ -99,7 +99,7 @@ The web UI accepts JSON files and shows:
 
 ## Path Definition
 
-A **path** is a directed trace from a CDFD input/source node to an output/sink node through data/control-flow edges.
+A **path** is a directed trace from a CDFD input/source node to an output/sink node through data-flow edges. Control/state edges are not path segments; they annotate the path with conditions such as `s1 == 1`.
 
 Example:
 

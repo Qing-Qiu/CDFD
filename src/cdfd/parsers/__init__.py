@@ -393,7 +393,7 @@ def _parse_edges(raw_edges: list[Any]) -> list[Edge]:
                 id=edge_id,
                 source=str(source),
                 target=str(target),
-                kind=str(raw_edge.get("kind", "flow")),
+                kind=_normalize_edge_kind(raw_edge.get("kind", "flow")),
                 data=_coerce_id_list(raw_edge.get("data"), "data"),
                 condition=_optional_str(raw_edge.get("condition")),
                 label=_optional_str(raw_edge.get("label")),
@@ -562,7 +562,7 @@ def _graph_from_csv(
                 id=edge_id,
                 source=source,
                 target=target,
-                kind=_optional_str(row.get("kind")) or "flow",
+                kind=_normalize_edge_kind(row.get("kind") or "flow"),
                 data=_coerce_id_list(row.get("data"), "data"),
                 condition=_optional_str(row.get("condition")),
                 label=_optional_str(row.get("label")),
@@ -687,9 +687,15 @@ def _degree_maps(nodes: dict[str, Node], edges: list[Edge]) -> tuple[dict[str, i
     incoming = {node_id: 0 for node_id in nodes}
     outgoing = {node_id: 0 for node_id in nodes}
     for edge in edges:
+        if edge.kind == "control":
+            continue
         outgoing[edge.source] = outgoing.get(edge.source, 0) + 1
         incoming[edge.target] = incoming.get(edge.target, 0) + 1
     return incoming, outgoing
+
+
+def _normalize_edge_kind(value: Any) -> str:
+    return str(value or "flow").strip().lower().replace("_", "-") or "flow"
 
 
 def _coerce_id_list(value: Any, field_name: str) -> list[str]:

@@ -91,6 +91,32 @@ def test_parse_json_graph_infers_start_and_ends_when_omitted():
     assert graph.ends == {"D"}
 
 
+def test_parse_infers_start_and_end_from_data_flow_edges_only():
+    graph = parse_cdfd(
+        """
+        {
+          "nodes": [
+            {"id": "IN", "type": "external"},
+            {"id": "S1", "type": "state"},
+            {"id": "A", "type": "process"},
+            {"id": "OUT", "type": "external"}
+          ],
+          "edges": [
+            {"id": "e1", "from": "IN", "to": "A", "data": ["x1"]},
+            {"id": "c1", "from": "S1", "to": "A", "kind": "Control", "condition": "s1 == 1"},
+            {"id": "e2", "from": "A", "to": "OUT", "data": ["x2"]}
+          ]
+        }
+        """,
+        "json",
+    )
+
+    assert graph.starts == {"IN"}
+    assert graph.start == "IN"
+    assert graph.ends == {"OUT"}
+    assert graph.edges[1].kind == "control"
+
+
 def test_parse_project_rejects_json_missing_schema_version():
     with pytest.raises(ParseError, match="schema_version"):
         parse_project(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cdfd.models import CDFDGraph, PathResult
+from cdfd.models import CDFDGraph, Edge, PathResult
 
 
 class PathLimitExceeded(RuntimeError):
@@ -57,19 +57,25 @@ def find_paths(
             return
 
         for edge in graph.outgoing_edges(current):
+            if _is_control_edge(edge):
+                continue
             if strategy == "simple" and edge.target in node_path:
                 continue
+            next_conditions = _extend_unique(
+                conditions,
+                [*_edge_conditions(edge), *_incoming_control_conditions(graph, edge.target)],
+            )
             dfs(
                 edge.target,
                 [*node_path, edge.target],
                 [*edge_path, edge.id],
                 [*data_path, *edge.data],
-                [*conditions, edge.condition] if edge.condition else list(conditions),
+                next_conditions,
                 depth + 1,
             )
 
     for start in sorted(graph.starts or {graph.start}):
-        dfs(start, [start], [], [], [], 0)
+        dfs(start, [start], [], [], _incoming_control_conditions(graph, start), 0)
     return sorted(paths, key=lambda path: (len(path.nodes), path.nodes, path.edges))
 
 
@@ -84,6 +90,8 @@ def detect_cycles(graph: CDFDGraph) -> list[list[str]]:
         stack.append(node_id)
 
         for edge in graph.outgoing_edges(node_id):
+            if _is_control_edge(edge):
+                continue
             target = edge.target
             if state.get(target) == "gray":
                 start_index = stack.index(target)
@@ -131,3 +139,35 @@ def _node_outputs(graph: CDFDGraph, node_id: str) -> list[str]:
         if isinstance(value, list):
             return [str(item) for item in value]
     return []
+
+
+def _is_control_edge(edge: Edge) -> bool:
+    return edge.kind.lower().replace("_", "-") == "control"
+
+
+def _edge_conditions(edge: Edge) -> list[str]:
+    return [edge.condition] if edge.condition else []
+
+
+def _incoming_control_conditions(graph: CDFDGraph, node_id: str) -> list[str]:
+    conditions: list[str] = []
+    for edge in graph.incoming_edges(node_id):
+        if not _is_control_edge(edge):
+            continue
+        if edge.condition:
+            conditions.append(edge.condition)
+        elif edge.label:
+            conditions.append(edge.label)
+        elif edge.data:
+            conditions.append(", ".join(edge.data))
+    return conditions
+
+
+def _extend_unique(existing: list[str], additions: list[str]) -> list[str]:
+    values = list(existing)
+    seen = set(values)
+    for item in additions:
+        if item not in seen:
+            values.append(item)
+            seen.add(item)
+    return values

@@ -24,7 +24,7 @@ References:
    The JSON file represents the SOFL-style package: module declarations, process specifications, graph layers, decomposition links, data/control flows, and explicit structures.
 
 2. Treat paths as atomic data-flow traces.
-   A path is a source-to-sink trace through CDFD data/control-flow edges. Parallel, choice, and join semantics are represented separately as `path_relations`.
+   A path is a source-to-sink trace through CDFD data-flow edges. Control/state edges are kept as conditions on the target process, not as path segments. Parallel, choice, and join semantics are represented separately as `path_relations`.
 
 3. Keep paths and functional scenarios separate.
    The tool now reports both layers. `paths` remain raw graph traces. `functional_scenarios` wrap those paths with process specifications, input/output data, preconditions, and postconditions so they can be used as inspection-oriented units.

@@ -61,6 +61,9 @@ class CDFDGraph(BaseModel):
     def outgoing_edges(self, node_id: str) -> list[Edge]:
         return [edge for edge in self.edges if edge.source == node_id]
 
+    def incoming_edges(self, node_id: str) -> list[Edge]:
+        return [edge for edge in self.edges if edge.target == node_id]
+
 
 class PathResult(BaseModel):
     nodes: list[str]

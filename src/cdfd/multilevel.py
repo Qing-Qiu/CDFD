@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from cdfd.models import CDFDProject, PathResult
+from cdfd.models import CDFDGraph, CDFDProject, PathResult
 from cdfd.path_finder import PathFindingOptions, PathLimitExceeded, detect_cycles, find_paths
 
 
@@ -66,7 +66,8 @@ def _expand_base_path(
     *,
     stack: list[str],
 ) -> list[PathResult]:
-    partials = [PathResult(nodes=[], edges=[], data=[], outputs=[], preconditions=[], conditions=[])]
+    initial_conditions = _start_conditions(project, graph_name, base_path.nodes[0] if base_path.nodes else None)
+    partials = [PathResult(nodes=[], edges=[], data=[], outputs=[], preconditions=[], conditions=initial_conditions)]
 
     for index, node_id in enumerate(base_path.nodes):
         node_segments = _node_segments(project, node_id, options, stack=stack)
@@ -85,10 +86,9 @@ def _expand_base_path(
 
                 if parent_edge_id:
                     edges.append(_qualify_edge(graph_name, parent_edge_id))
-                    edge_data, edge_condition = _edge_values(project, graph_name, parent_edge_id)
+                    edge_data, _ = _edge_values(project, graph_name, parent_edge_id)
                     data.extend(edge_data)
-                    if edge_condition:
-                        conditions.append(edge_condition)
+                    conditions = _extend_unique(conditions, _edge_conditions(project, graph_name, parent_edge_id))
 
                 next_partials.append(
                     PathResult(
@@ -152,6 +152,37 @@ def _edge_values(project: CDFDProject, graph_name: str, edge_id: str) -> tuple[l
     return [], None
 
 
+def _edge_conditions(project: CDFDProject, graph_name: str, edge_id: str) -> list[str]:
+    graph = project.graphs[graph_name]
+    for edge in graph.edges:
+        if edge.id != edge_id:
+            continue
+        edge_conditions = [edge.condition] if edge.condition else []
+        return [*edge_conditions, *_control_conditions_for_target(graph, edge.target)]
+    return []
+
+
+def _start_conditions(project: CDFDProject, graph_name: str, node_id: str | None) -> list[str]:
+    if node_id is None:
+        return []
+    graph = project.graphs[graph_name]
+    return _control_conditions_for_target(graph, node_id)
+
+
+def _control_conditions_for_target(graph: CDFDGraph, node_id: str) -> list[str]:
+    conditions: list[str] = []
+    for control_edge in graph.incoming_edges(node_id):
+        if control_edge.kind.lower().replace("_", "-") != "control":
+            continue
+        if control_edge.condition:
+            conditions.append(control_edge.condition)
+        elif control_edge.label:
+            conditions.append(control_edge.label)
+        elif control_edge.data:
+            conditions.append(", ".join(control_edge.data))
+    return conditions
+
+
 def _compatible_segments(segments: list[PathResult], parent_edge_data: list[str]) -> list[PathResult]:
     if not parent_edge_data:
         return segments
@@ -163,3 +194,13 @@ def _process_preconditions(node_id: str, process) -> list[str]:
     if process and process.pre:
         return [f"{node_id}: {process.pre}"]
     return []
+
+
+def _extend_unique(existing: list[str], additions: list[str]) -> list[str]:
+    values = list(existing)
+    seen = set(values)
+    for item in additions:
+        if item not in seen:
+            values.append(item)
+            seen.add(item)
+    return values
