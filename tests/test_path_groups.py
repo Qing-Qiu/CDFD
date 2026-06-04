@@ -1,6 +1,6 @@
 from cdfd.parsers import parse_cdfd
 from cdfd.path_finder import find_paths
-from cdfd.path_groups import build_path_groups
+from cdfd.path_groups import build_path_relations
 
 
 def test_builds_joined_output_group_for_converging_branches():
@@ -23,7 +23,7 @@ def test_builds_joined_output_group_for_converging_branches():
         "json",
     )
 
-    groups = build_path_groups(find_paths(graph))
+    groups = build_path_relations(find_paths(graph))
 
     joined = [group for group in groups if group.kind == "joined-output"]
     assert len(joined) == 1
@@ -51,7 +51,7 @@ def test_builds_parallel_group_for_disjoint_output_paths():
         "json",
     )
 
-    groups = build_path_groups(find_paths(graph))
+    groups = build_path_relations(find_paths(graph))
 
     parallel = [group for group in groups if group.kind == "parallel"]
     assert len(parallel) == 1
@@ -78,6 +78,80 @@ def test_does_not_group_mutually_conditioned_alternatives_as_joined_output():
         "json",
     )
 
-    groups = build_path_groups(find_paths(graph))
+    groups = build_path_relations(find_paths(graph))
 
     assert not groups
+
+
+def test_explicit_parallel_structure_generates_parallel_relation():
+    graph = parse_cdfd(
+        """
+        {
+          "schema_version": "cdfd-json-v1",
+          "start": "IN",
+          "ends": ["O1", "O2"],
+          "nodes": ["IN", "A", "B", "C", "O1", "O2"],
+          "edges": [
+            {"id": "e1", "from": "IN", "to": "A", "data": ["x1"]},
+            {"id": "e2", "from": "A", "to": "B", "data": ["x2"]},
+            {"id": "e3", "from": "A", "to": "C", "data": ["x3"]},
+            {"id": "e4", "from": "B", "to": "O1", "data": ["x4"]},
+            {"id": "e5", "from": "C", "to": "O2", "data": ["x5"]}
+          ],
+          "structures": [
+            {
+              "id": "par_A",
+              "kind": "parallel",
+              "source": "A",
+              "branches": [
+                {"id": "left", "edges": ["e2", "e4"]},
+                {"id": "right", "edges": ["e3", "e5"]}
+              ]
+            }
+          ]
+        }
+        """,
+        "json",
+    )
+
+    relations = build_path_relations(find_paths(graph), graph=graph)
+
+    assert relations[0].kind == "parallel"
+    assert relations[0].structure_id == "par_A"
+    assert relations[0].branch_ids == ["left", "right"]
+    assert relations[0].path_ids == ["P1", "P2"]
+
+
+def test_explicit_choice_structure_suppresses_inferred_parallel_relation():
+    graph = parse_cdfd(
+        """
+        {
+          "schema_version": "cdfd-json-v1",
+          "start": "A",
+          "ends": ["O1", "O2"],
+          "nodes": ["A", "B", "C", "O1", "O2"],
+          "edges": [
+            {"id": "e1", "from": "A", "to": "B", "data": ["x1"]},
+            {"id": "e2", "from": "A", "to": "C", "data": ["x2"]},
+            {"id": "e3", "from": "B", "to": "O1", "data": ["x3"]},
+            {"id": "e4", "from": "C", "to": "O2", "data": ["x4"]}
+          ],
+          "structures": [
+            {
+              "id": "choice_A",
+              "kind": "choice",
+              "source": "A",
+              "branches": [
+                {"id": "left", "edges": ["e1", "e3"]},
+                {"id": "right", "edges": ["e2", "e4"]}
+              ]
+            }
+          ]
+        }
+        """,
+        "json",
+    )
+
+    relations = build_path_relations(find_paths(graph), graph=graph)
+
+    assert [relation.kind for relation in relations] == ["exclusive"]

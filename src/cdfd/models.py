@@ -23,11 +23,38 @@ class Edge(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class StructureBranch(BaseModel):
+    id: str | None = None
+    source: str | None = None
+    target: str | None = None
+    edges: list[str] = Field(default_factory=list)
+    nodes: list[str] = Field(default_factory=list)
+    data: list[str] = Field(default_factory=list)
+    condition: str | None = None
+    label: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class GraphStructure(BaseModel):
+    id: str
+    kind: str
+    source: str | None = None
+    target: str | None = None
+    branches: list[StructureBranch] = Field(default_factory=list)
+    edges: list[str] = Field(default_factory=list)
+    nodes: list[str] = Field(default_factory=list)
+    data: list[str] = Field(default_factory=list)
+    condition: str | None = None
+    label: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class CDFDGraph(BaseModel):
     nodes: dict[str, Node]
     edges: list[Edge]
     start: str
     ends: set[str]
+    structures: list[GraphStructure] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def outgoing_edges(self, node_id: str) -> list[Edge]:
@@ -43,11 +70,13 @@ class PathResult(BaseModel):
     conditions: list[str] = Field(default_factory=list)
 
 
-class PathGroup(BaseModel):
+class PathRelation(BaseModel):
     id: str
     kind: str
     path_ids: list[str]
     title: str | None = None
+    structure_id: str | None = None
+    branch_ids: list[str] = Field(default_factory=list)
     shared_prefix: list[str] = Field(default_factory=list)
     nodes: list[str] = Field(default_factory=list)
     edges: list[str] = Field(default_factory=list)
@@ -56,6 +85,10 @@ class PathGroup(BaseModel):
     preconditions: list[str] = Field(default_factory=list)
     conditions: list[str] = Field(default_factory=list)
     reason: str | None = None
+
+
+class PathGroup(PathRelation):
+    """Backward-compatible name for older callers."""
 
 
 class ModuleInfo(BaseModel):

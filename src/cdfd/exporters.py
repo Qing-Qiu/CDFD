@@ -7,7 +7,7 @@ from collections import defaultdict, deque
 from io import StringIO
 from typing import Iterable
 
-from cdfd.models import CDFDGraph, CDFDProject, PathGroup, PathResult, model_dump
+from cdfd.models import CDFDGraph, CDFDProject, PathRelation, PathResult, model_dump
 
 NODE_WIDTH = 150
 NODE_HEIGHT = 48
@@ -31,20 +31,20 @@ def export_paths(paths: list[PathResult], output_format: str) -> str:
     raise ValueError(f"Unsupported output format: {output_format}")
 
 
-def export_analysis(paths: list[PathResult], path_groups: list[PathGroup], output_format: str) -> str:
+def export_analysis(paths: list[PathResult], path_relations: list[PathRelation], output_format: str) -> str:
     fmt = output_format.lower()
     if fmt == "json":
         return json.dumps(
             {
                 "paths": [model_dump(path) for path in paths],
-                "path_groups": [model_dump(group) for group in path_groups],
+                "path_relations": [model_dump(relation) for relation in path_relations],
             },
             indent=2,
         )
     if fmt == "text":
-        return _append_text_groups(_export_text(paths), path_groups)
+        return _append_text_relations(_export_text(paths), path_relations)
     if fmt == "markdown":
-        return _append_markdown_groups(_export_markdown(paths), path_groups)
+        return _append_markdown_relations(_export_markdown(paths), path_relations)
     if fmt == "csv":
         return _export_csv(paths)
     raise ValueError(f"Unsupported output format: {output_format}")
@@ -56,6 +56,7 @@ def graph_to_dict(graph: CDFDGraph) -> dict[str, object]:
         "ends": sorted(graph.ends),
         "nodes": [model_dump(node) for node in graph.nodes.values()],
         "edges": [model_dump(edge) for edge in graph.edges],
+        "structures": [model_dump(structure) for structure in graph.structures],
         "metadata": graph.metadata,
     }
 
@@ -187,37 +188,38 @@ def _export_markdown(paths: list[PathResult]) -> str:
     return "\n".join(lines)
 
 
-def _append_text_groups(text: str, path_groups: list[PathGroup]) -> str:
-    if not path_groups:
-        return f"{text}\n\nPath Groups: none detected."
+def _append_text_relations(text: str, path_relations: list[PathRelation]) -> str:
+    if not path_relations:
+        return f"{text}\n\nPath Relations: none detected."
 
-    lines = [text, "", "Path Groups:"]
-    for group in path_groups:
-        lines.append(f"{group.id} ({group.kind}): {' || '.join(group.path_ids)}")
-        if group.title:
-            lines.append(f"  {group.title}")
-        if group.outputs:
-            lines.append(f"  Outputs: {', '.join(group.outputs)}")
-        if group.shared_prefix:
-            lines.append(f"  Shared prefix: {' -> '.join(group.shared_prefix)}")
+    lines = [text, "", "Path Relations:"]
+    for relation in path_relations:
+        connector = " || " if relation.kind == "parallel" else " + "
+        lines.append(f"{relation.id} ({relation.kind}): {connector.join(relation.path_ids)}")
+        if relation.title:
+            lines.append(f"  {relation.title}")
+        if relation.outputs:
+            lines.append(f"  Outputs: {', '.join(relation.outputs)}")
+        if relation.shared_prefix:
+            lines.append(f"  Shared prefix: {' -> '.join(relation.shared_prefix)}")
     return "\n".join(lines)
 
 
-def _append_markdown_groups(markdown: str, path_groups: list[PathGroup]) -> str:
-    if not path_groups:
-        return f"{markdown}\n\nNo path groups detected."
+def _append_markdown_relations(markdown: str, path_relations: list[PathRelation]) -> str:
+    if not path_relations:
+        return f"{markdown}\n\nNo path relations detected."
 
     lines = [
         markdown,
         "",
-        "| Group | Kind | Paths | Outputs | Shared Prefix |",
+        "| Relation | Kind | Paths | Outputs | Shared Prefix |",
         "| --- | --- | --- | --- | --- |",
     ]
-    for group in path_groups:
-        outputs = ", ".join(group.outputs) if group.outputs else "-"
-        shared_prefix = " -> ".join(group.shared_prefix) if group.shared_prefix else "-"
+    for relation in path_relations:
+        outputs = ", ".join(relation.outputs) if relation.outputs else "-"
+        shared_prefix = " -> ".join(relation.shared_prefix) if relation.shared_prefix else "-"
         lines.append(
-            f"| {group.id} | {group.kind} | {' || '.join(group.path_ids)} | {outputs} | {shared_prefix} |"
+            f"| {relation.id} | {relation.kind} | {' || '.join(relation.path_ids)} | {outputs} | {shared_prefix} |"
         )
     return "\n".join(lines)
 

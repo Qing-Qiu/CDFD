@@ -287,19 +287,11 @@
       <div class="panel-heading">Input</div>
       <div class="panel-body">
         <div class="field">
-          <label for="fileInput">File</label>
-          <input id="fileInput" type="file" accept=".json,.yaml,.yml,.csv">
+          <label for="fileInput">JSON file</label>
+          <input id="fileInput" type="file" accept=".json,application/json">
         </div>
 
         <div class="grid-two">
-          <div class="field">
-            <label for="inputFormat">Format</label>
-            <select id="inputFormat">
-              <option value="json">JSON</option>
-              <option value="yaml">YAML</option>
-              <option value="csv">CSV</option>
-            </select>
-          </div>
           <div class="field">
             <label for="strategy">Cycle Strategy</label>
             <select id="strategy">
@@ -339,14 +331,34 @@
         <div class="field">
           <label for="content">CDFD content</label>
           <textarea id="content" spellcheck="false">{
-  "start": "A",
-  "ends": ["D"],
-  "nodes": ["A", "B", "C", "D"],
+  "schema_version": "cdfd-json-v1",
+  "start": "IN",
+  "ends": ["OUT_X4", "OUT_X5"],
+  "nodes": [
+    { "id": "IN", "type": "external", "label": "Input" },
+    { "id": "A", "type": "process" },
+    { "id": "B", "type": "process" },
+    { "id": "C", "type": "process" },
+    { "id": "OUT_X4", "type": "external", "label": "Output x4" },
+    { "id": "OUT_X5", "type": "external", "label": "Output x5" }
+  ],
   "edges": [
-    { "from": "A", "to": "B" },
-    { "from": "A", "to": "C" },
-    { "from": "B", "to": "D", "condition": "yes" },
-    { "from": "C", "to": "D", "condition": "no" }
+    { "id": "e1", "from": "IN", "to": "A", "data": ["x1"] },
+    { "id": "e2", "from": "A", "to": "B", "data": ["x2"] },
+    { "id": "e3", "from": "A", "to": "C", "data": ["x3"] },
+    { "id": "e4", "from": "B", "to": "OUT_X4", "data": ["x4"] },
+    { "id": "e5", "from": "C", "to": "OUT_X5", "data": ["x5"] }
+  ],
+  "structures": [
+    {
+      "id": "par_A",
+      "kind": "parallel",
+      "source": "A",
+      "branches": [
+        { "id": "x4_branch", "edges": ["e2", "e4"] },
+        { "id": "x5_branch", "edges": ["e3", "e5"] }
+      ]
+    }
   ]
 }</textarea>
         </div>
@@ -374,9 +386,9 @@
               </ol>
             </div>
             <div>
-              <div class="list-title">Path groups</div>
-              <ol id="pathGroups" class="path-list group-list">
-                <li class="empty">Run the generator to see groups.</li>
+              <div class="list-title">Path relations</div>
+              <ol id="pathRelations" class="path-list group-list">
+                <li class="empty">Run the generator to see relations.</li>
               </ol>
             </div>
           </div>
@@ -400,12 +412,11 @@
 
   <script>
     const fileInput = document.getElementById("fileInput");
-    const inputFormat = document.getElementById("inputFormat");
     const content = document.getElementById("content");
     const runButton = document.getElementById("runButton");
     const message = document.getElementById("message");
     const paths = document.getElementById("paths");
-    const pathGroups = document.getElementById("pathGroups");
+    const pathRelations = document.getElementById("pathRelations");
     const visual = document.getElementById("visual");
     const nodeCount = document.getElementById("nodeCount");
     const edgeCount = document.getElementById("edgeCount");
@@ -418,21 +429,17 @@
       const file = fileInput.files[0];
       if (!file) return;
       content.value = await file.text();
-      const name = file.name.toLowerCase();
-      if (name.endsWith(".yaml") || name.endsWith(".yml")) inputFormat.value = "yaml";
-      else if (name.endsWith(".csv")) inputFormat.value = "csv";
-      else inputFormat.value = "json";
     });
 
     runButton.addEventListener("click", async () => {
       setMessage("Generating paths.", "");
       paths.innerHTML = "";
-      pathGroups.innerHTML = "";
+      pathRelations.innerHTML = "";
       visual.innerHTML = '<div class="empty">Working...</div>';
 
       const payload = {
         content: content.value,
-        input_format: inputFormat.value,
+        input_format: "json",
         start: document.getElementById("start").value || null,
         ends: document.getElementById("ends").value || null,
         strategy: document.getElementById("strategy").value,
@@ -465,7 +472,7 @@
         edgeCount.textContent = project.total_edges;
         pathCount.textContent = data.paths.length;
         renderPaths(data.paths);
-        renderPathGroups(data.path_groups || []);
+        renderPathRelations(data.path_relations || []);
         graphSvgs = data.graph_svgs || { [project.entry_graph || "main"]: data.svg };
         renderGraphSelector(project.entry_graph, graphSvgs);
 
@@ -481,7 +488,7 @@
         graphCount.textContent = "0";
         pathCount.textContent = "0";
         paths.innerHTML = '<li class="empty">No paths.</li>';
-        pathGroups.innerHTML = '<li class="empty">No groups.</li>';
+        pathRelations.innerHTML = '<li class="empty">No relations.</li>';
         visual.innerHTML = '<div class="empty">No graph.</div>';
         graphLayer.innerHTML = '<option value="">-</option>';
         graphLayer.disabled = true;
@@ -516,10 +523,10 @@
       }
     }
 
-    function renderPathGroups(items) {
-      pathGroups.innerHTML = "";
+    function renderPathRelations(items) {
+      pathRelations.innerHTML = "";
       if (!items.length) {
-        pathGroups.innerHTML = '<li class="empty">No path groups detected.</li>';
+        pathRelations.innerHTML = '<li class="empty">No path relations detected.</li>';
         return;
       }
       for (const item of items) {
@@ -532,7 +539,7 @@
         if (item.shared_prefix.length) {
           li.textContent += ` | shared: ${item.shared_prefix.join(" -> ")}`;
         }
-        pathGroups.appendChild(li);
+        pathRelations.appendChild(li);
       }
     }
 

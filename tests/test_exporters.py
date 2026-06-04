@@ -4,7 +4,7 @@ import re
 from cdfd.exporters import export_analysis, export_paths, render_svg
 from cdfd.parsers import parse_cdfd
 from cdfd.path_finder import find_paths
-from cdfd.path_groups import build_path_groups
+from cdfd.path_groups import build_path_relations
 
 
 def test_export_paths_as_markdown():
@@ -47,7 +47,7 @@ def test_export_paths_as_json_and_csv():
     assert "P1,A -> B,e1,," in csv_output
 
 
-def test_export_analysis_includes_path_groups_in_json():
+def test_export_analysis_includes_path_relations_in_json():
     graph = parse_cdfd(
         """
         {
@@ -67,10 +67,10 @@ def test_export_analysis_includes_path_groups_in_json():
     )
     paths = find_paths(graph)
 
-    output = json.loads(export_analysis(paths, build_path_groups(paths), "json"))
+    output = json.loads(export_analysis(paths, build_path_relations(paths), "json"))
 
     assert output["paths"][0]["nodes"] == ["IN", "A", "B", "O1"]
-    assert output["path_groups"][0]["kind"] == "parallel"
+    assert output["path_relations"][0]["kind"] == "parallel"
 
 
 def test_render_svg_contains_nodes_and_edges():

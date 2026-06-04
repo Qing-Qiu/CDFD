@@ -1,18 +1,22 @@
 # CDFD Path Generator
 
-A small Python tool for generating all paths for a given CDFD.
+A Python tool for generating paths from a CDFD JSON file.
 
-The project supports:
+CDFD means **Condition Data Flow Diagram**. In this project, a CDFD file contains the module, processes, graph layers, data/control flows, and explicit structures needed to generate paths automatically.
 
-- JSON, YAML, and CSV inputs
+## Current Scope
+
+- JSON input as the project format
 - CLI path generation
 - FastAPI web UI
 - simple-path cycle handling
 - max-depth cycle handling
-- multi-level CDFD process decomposition
+- multi-level process decomposition
 - data-flow labels such as `x1`, `x6`, `y1`, and state/precondition labels such as `s1`
-- path groups for joined outputs and parallel independent flows
+- path relations for parallel, exclusive, and joined-output paths
 - text, JSON, CSV, and Markdown outputs
+
+YAML and CSV parser helpers still exist for older examples, but the project format for the assignment is JSON. See [docs/cdfd-json-format.md](docs/cdfd-json-format.md).
 
 ## Install
 
@@ -23,57 +27,31 @@ python -m pip install -e .
 
 ## CLI
 
-Generate paths from JSON:
+Generate paths from the canonical JSON example:
 
 ```bash
-cdfd-paths examples/simple.json
+python -m cdfd.cli examples/cdfd_v1.json
 ```
 
-If console scripts are not on your PATH, use:
+Generate expanded paths from a multi-level CDFD:
 
 ```bash
-python -m cdfd.cli examples/simple.json
+python -m cdfd.cli examples/multilevel.json
 ```
 
-Generate paths from YAML:
+Output JSON analysis:
 
 ```bash
-cdfd-paths examples/branch.yaml --output-format markdown
+python -m cdfd.cli examples/cdfd_v1.json --output-format json
 ```
 
-Generate bounded cyclic paths from CSV:
+For graphs with cycles, use bounded traversal:
 
 ```bash
-cdfd-paths examples/loop.csv --start A --end C --strategy max-depth --max-depth 4
-```
-
-For acyclic graphs, start and end nodes can be auto-detected:
-
-```bash
-cdfd-paths examples/linear.csv
-```
-
-Provide `--start` or `--end` when the graph has cycles, multiple possible starts, or a non-standard entry/exit.
-
-Generate expanded paths from a multi-level CDFD project:
-
-```bash
-cdfd-paths examples/multilevel.json
-```
-
-Keep only the top-level CDFD path:
-
-```bash
-cdfd-paths examples/multilevel.json --no-expand
+python -m cdfd.cli examples/loop.csv --start A --end C --strategy max-depth --max-depth 4
 ```
 
 ## Web UI
-
-```bash
-cdfd-web
-```
-
-Or:
 
 ```bash
 python -m cdfd.web
@@ -85,113 +63,110 @@ Then open:
 http://127.0.0.1:8000
 ```
 
-## Input Model
+The web UI accepts JSON files and shows:
 
-JSON and YAML inputs use this structure:
+- linear paths
+- path relations
+- graph layer visualization
 
-```json
-{
-  "start": "A",
-  "ends": ["D"],
-  "nodes": [
-    { "id": "A", "type": "start" },
-    { "id": "B", "type": "process" },
-    { "id": "D", "type": "end" }
-  ],
-  "edges": [
-    { "id": "e1", "from": "A", "to": "B", "data": ["x1"] },
-    { "id": "e2", "from": "B", "to": "D", "data": ["x2"], "condition": "ok" }
-  ]
-}
-```
+## Path Definition
 
-CSV inputs are edge lists. `start` and `ends` are auto-detected when the graph has one source-only node and at least one sink node:
+A **path** is a directed trace from a CDFD input/source node to an output/sink node through data/control-flow edges.
 
-```csv
-from,to,data,condition
-A,B,x1,
-B,D,x2,ok
-```
-
-Use `data` for CDFD data-flow labels (`x1`, `x6`, `y1`, `z2`). Use `condition` for guards or control conditions. Process-level `pre` and `post` describe preconditions and input/output relationships, such as `s1 == 1`.
-
-State/control labels such as `s1` and `s2` can be shown in the graph as `state` nodes connected by `control` edges:
-
-```json
-{
-  "nodes": [
-    { "id": "S1", "type": "state", "label": "1 s1" },
-    { "id": "A1", "type": "process" }
-  ],
-  "edges": [
-    { "from": "S1", "to": "A1", "kind": "control", "condition": "s1 == 1" }
-  ]
-}
-```
-
-The Web visualization draws `control` edges as dashed arrows.
-
-Text output renders paths as data-flow transitions when every edge has one data label:
+Example:
 
 ```text
-IN --[x1]--> A1 --[x2]--> A2 --[x4]--> A4 --[x6]--> OUT_X6
+IN --[x1]--> A --[x2]--> B --[x4]--> OUT_X4
 ```
 
-For expanded multi-level paths, process preconditions are shown separately:
+Parallel paths are still separate paths. The relation between them is reported separately:
 
 ```text
-Preconditions: A1: s1 == 1; A33: s2 == 2
+R1 (parallel): P1 || P2
 ```
 
-## Path Semantics
+This keeps `paths` and functional scenarios separate. The tool currently generates paths plus path relations, not full functional scenarios.
 
-The tool reports two related result types:
+## JSON Format
 
-- **Linear paths** are single source-to-sink traces through the CDFD graph. They are useful for checking every reachable data-flow route.
-- **Path groups** are semantic bundles of linear paths. A `joined-output` group means several compatible branches feed the same output slice. A `parallel` group means two paths share a prefix and then continue through disjoint downstream nodes/data without conflicting conditions.
-
-This distinction matters because CDFD branches are not always choices. For example, if two branches both feed process `A4` before output `x6`, those branches are part of one output computation, not two mutually exclusive executions.
-
-## Cycle Strategies
-
-- `simple`: a path may not visit the same node twice.
-- `max-depth`: a path may revisit nodes, but the number of traversed edges is capped by `--max-depth`.
-
-## Multi-Level CDFD
-
-JSON and YAML can also describe a full CDFD project:
+Minimal project shape:
 
 ```json
 {
+  "schema_version": "cdfd-json-v1",
   "module": {
     "name": "ExampleModule",
     "behav": "Top"
   },
   "processes": [
-    { "id": "A1", "pre": "s1 == 1", "post": "x2 is derived from x1", "decom": "A1_detail" }
+    {
+      "id": "A",
+      "inputs": ["x1"],
+      "outputs": ["x2", "x3"],
+      "pre": "x1 is available",
+      "post": "x2 and x3 are derived from x1"
+    }
   ],
   "graphs": {
     "Top": {
-      "start": "A1",
-      "ends": ["A2"],
-      "nodes": ["A1", "A2"],
-      "edges": [{ "from": "A1", "to": "A2", "data": ["x2"] }]
-    },
-    "A1_detail": {
-      "start": "A11",
-      "ends": ["A12"],
-      "nodes": ["A11", "A12"],
-      "edges": [{ "from": "A11", "to": "A12", "data": ["y1"] }]
+      "start": "IN",
+      "ends": ["OUT_X4", "OUT_X5"],
+      "nodes": [
+        { "id": "IN", "type": "external" },
+        { "id": "A", "type": "process" },
+        { "id": "B", "type": "process" },
+        { "id": "C", "type": "process" },
+        { "id": "OUT_X4", "type": "external" },
+        { "id": "OUT_X5", "type": "external" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "IN", "to": "A", "data": ["x1"] },
+        { "id": "e2", "from": "A", "to": "B", "data": ["x2"] },
+        { "id": "e3", "from": "A", "to": "C", "data": ["x3"] },
+        { "id": "e4", "from": "B", "to": "OUT_X4", "data": ["x4"] },
+        { "id": "e5", "from": "C", "to": "OUT_X5", "data": ["x5"] }
+      ],
+      "structures": [
+        {
+          "id": "par_A",
+          "kind": "parallel",
+          "source": "A",
+          "branches": [
+            { "id": "x4_branch", "edges": ["e2", "e4"] },
+            { "id": "x5_branch", "edges": ["e3", "e5"] }
+          ]
+        }
+      ]
     }
   }
 }
 ```
 
-`module.behav` selects the top-level CDFD. Each `process.decom` points to another graph. By default, the generator recursively replaces decomposed processes with paths from their child CDFD.
+Use `structures` to distinguish branches that cannot be safely inferred from topology:
 
-The Web UI includes a graph-layer selector so each CDFD layer can be inspected separately.
+- `parallel`: paths can be related as independent/parallel.
+- `choice`: paths are alternatives, not parallel.
+- `join`: paths feed the same output or downstream process.
 
-When a decomposed process has multiple child exits, graph metadata can map child end nodes to parent-level output data. This prevents invalid combinations such as using an `x7` child exit on an `x5` parent edge:
+## Multi-Level CDFD
+
+Each `process.decom` points to another graph:
+
+```json
+{
+  "processes": [
+    { "id": "A1", "decom": "A1_detail" }
+  ],
+  "graphs": {
+    "Top": {},
+    "A1_detail": {}
+  }
+}
+```
+
+By default, the generator recursively replaces decomposed processes with child CDFD paths.
+
+When a decomposed process has multiple child exits, graph metadata can map child end nodes to parent output data:
 
 ```json
 {
@@ -204,15 +179,8 @@ When a decomposed process has multiple child exits, graph metadata can map child
 }
 ```
 
-## Project File Checklist
+## Verification
 
-For a complete CDFD project file, include:
-
-- `module`: constants, types, variables, and `behav` entry graph when known.
-- `processes`: each process id, optional `pre`/`post`, and optional `decom` target graph.
-- `graphs`: every CDFD layer, including the top layer and decomposed process layers.
-- graph `nodes`: process, external, state, or other node types needed for display and analysis.
-- graph `edges`: `from`, `to`, optional `data`, optional `condition`, and `kind: "control"` for state/precondition arrows.
-- graph `metadata.outputs`: child end-node to parent output-data mapping when a decomposed process has multiple exits.
-
-Unknown extra fields are preserved in metadata, so the format can be extended later with stricter branch semantics when the course examples need them.
+```bash
+python -m pytest
+```

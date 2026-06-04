@@ -1,4 +1,5 @@
 {
+  "schema_version": "cdfd-json-v1",
   "module": {
     "name": "ExampleModule",
     "const": ["s1 = 1", "s2 = 2"],
@@ -48,6 +49,26 @@
         { "id": "e4", "from": "A3", "to": "A4", "data": ["x5"] },
         { "id": "e5", "from": "A4", "to": "OUT_X6", "data": ["x6"] },
         { "id": "e6", "from": "A3", "to": "OUT_X7", "data": ["x7"] }
+      ],
+      "structures": [
+        {
+          "id": "join_x6",
+          "kind": "join",
+          "target": "A4",
+          "branches": [
+            { "id": "via_A2", "edges": ["e1", "e3", "e5"] },
+            { "id": "via_A3", "edges": ["e2", "e4", "e5"] }
+          ]
+        },
+        {
+          "id": "parallel_outputs",
+          "kind": "parallel",
+          "source": "A1",
+          "branches": [
+            { "id": "x6_branch", "edges": ["e1", "e3", "e5"] },
+            { "id": "x7_branch", "edges": ["e2", "e6"] }
+          ]
+        }
       ]
     },
     "A1_detail": {

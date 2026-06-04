@@ -1,0 +1,136 @@
+# CDFD JSON Format v1
+
+This project currently accepts CDFD input as JSON. A valid file describes one CDFD project: module data, process specifications, graph layers, data/control flows, and explicit CDFD structures.
+
+## Path Definition
+
+A path is a directed trace from a graph input/source node to an output/sink node through CDFD edges.
+
+The generator reports:
+
+- `paths`: individual source-to-sink traces.
+- `path_relations`: relationships between paths, such as `parallel`, `exclusive`, or `joined-output`.
+
+Parallel paths remain separate paths. The relation records that they can be considered independent or simultaneous.
+
+## Top-Level Object
+
+```json
+{
+  "schema_version": "cdfd-json-v1",
+  "module": {},
+  "processes": [],
+  "graphs": {}
+}
+```
+
+Fields:
+
+- `schema_version`: recommended value `cdfd-json-v1`.
+- `module`: constants, types, variables, and entry CDFD.
+- `processes`: formal process specifications.
+- `graphs`: named CDFD layers.
+
+## Module
+
+```json
+{
+  "name": "ExampleModule",
+  "const": ["s1 = 1"],
+  "type": ["int", "real"],
+  "var": ["x1", "x2"],
+  "behav": "Top"
+}
+```
+
+`behav` selects the top-level graph when `entry_graph` is not supplied.
+
+## Process
+
+```json
+{
+  "id": "A1",
+  "inputs": ["x1"],
+  "outputs": ["x2", "x3"],
+  "pre": "s1 == 1",
+  "post": "x2 and x3 are derived from x1",
+  "decom": "A1_detail"
+}
+```
+
+`decom` points to a graph that decomposes the process. When omitted, the process is treated as atomic.
+
+## Graph
+
+```json
+{
+  "start": "IN",
+  "ends": ["OUT_X6"],
+  "nodes": [],
+  "edges": [],
+  "structures": []
+}
+```
+
+`start` and `ends` can be inferred for simple acyclic graphs, but explicit values are preferred for CDFD project files.
+
+## Node
+
+```json
+{ "id": "A1", "type": "process", "label": "A1" }
+```
+
+Common node types:
+
+- `process`: a CDFD process.
+- `external`: input/output environment.
+- `data_store`: persistent data store.
+- `state`: state or condition store such as `1 s1`.
+- `connector`: control/data-flow helper node.
+
+## Edge
+
+```json
+{
+  "id": "e1",
+  "from": "A1",
+  "to": "A2",
+  "kind": "flow",
+  "data": ["x2"],
+  "condition": "x2 is available"
+}
+```
+
+`kind` values:
+
+- `flow`: normal active data flow.
+- `control`: control or state condition flow, rendered as dashed in the Web UI.
+- `shadow`: placeholder flow carrying presence/absence information.
+
+## Structure
+
+Use `structures` when the graph has semantics that cannot be safely inferred from topology.
+
+```json
+{
+  "id": "par_A",
+  "kind": "parallel",
+  "source": "A",
+  "branches": [
+    { "id": "x4_branch", "edges": ["e2", "e4"] },
+    { "id": "x5_branch", "edges": ["e3", "e5"] }
+  ]
+}
+```
+
+Supported structure kinds:
+
+- `parallel`, `broadcast`, `fork`, `separate`: branches can be related as parallel paths.
+- `choice`, `condition`, `select`, `non-determinism`: branches are alternatives, not parallel.
+- `join`, `merge`: branches feed the same output or downstream process.
+
+Each branch can match paths by `edges`, `nodes`, `data`, `source`, `target`, or `condition`.
+
+## Minimal Complete Example
+
+See [examples/cdfd_v1.json](../examples/cdfd_v1.json).

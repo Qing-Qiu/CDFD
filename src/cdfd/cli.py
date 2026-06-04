@@ -7,7 +7,7 @@ from pathlib import Path
 from cdfd.exporters import export_analysis
 from cdfd.multilevel import detect_project_cycles, find_project_paths
 from cdfd.parsers import ParseError, infer_format, parse_project
-from cdfd.path_groups import build_path_groups
+from cdfd.path_groups import build_path_relations
 from cdfd.path_finder import PathFindingOptions, PathLimitExceeded
 
 
@@ -30,10 +30,15 @@ def main(argv: list[str] | None = None) -> int:
             ),
             expand=not args.no_expand,
         )
-        path_groups = build_path_groups(paths)
+        path_relations = build_path_relations(
+            paths,
+            project=project if not args.no_expand else None,
+            graph=project.entry() if args.no_expand else None,
+            graph_name=project.entry_graph if not args.no_expand else None,
+        )
         if cycles:
             _print_cycles(cycles)
-        print(export_analysis(paths, path_groups, args.output_format))
+        print(export_analysis(paths, path_relations, args.output_format))
         return 0
     except (OSError, ParseError, ValueError, PathLimitExceeded) as exc:
         print(f"Error: {exc}", file=sys.stderr)

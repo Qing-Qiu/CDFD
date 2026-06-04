@@ -8,7 +8,16 @@ from typing import Any
 
 import yaml
 
-from cdfd.models import CDFDGraph, CDFDProject, Edge, ModuleInfo, Node, ProcessSpec
+from cdfd.models import (
+    CDFDGraph,
+    CDFDProject,
+    Edge,
+    GraphStructure,
+    ModuleInfo,
+    Node,
+    ProcessSpec,
+    StructureBranch,
+)
 
 
 class ParseError(ValueError):
@@ -240,6 +249,7 @@ def _graph_from_mapping(
 
     nodes = _parse_nodes(data.get("nodes", []))
     edges = _parse_edges(raw_edges)
+    structures = _parse_structures(data.get("structures", []))
 
     if not nodes:
         for edge in edges:
@@ -251,7 +261,14 @@ def _graph_from_mapping(
     ends = set(_coerce_id_list(raw_ends, "ends"))
 
     metadata = _coerce_metadata(data.get("metadata"))
-    return _build_graph(nodes=nodes, edges=edges, start=start, ends=ends, metadata=metadata)
+    return _build_graph(
+        nodes=nodes,
+        edges=edges,
+        start=start,
+        ends=ends,
+        structures=structures,
+        metadata=metadata,
+    )
 
 
 def _parse_nodes(raw_nodes: Any) -> dict[str, Node]:
@@ -345,6 +362,118 @@ def _parse_edges(raw_edges: list[Any]) -> list[Edge]:
     return edges
 
 
+def _parse_structures(raw_structures: Any) -> list[GraphStructure]:
+    if raw_structures in (None, ""):
+        return []
+    if isinstance(raw_structures, dict):
+        iterable = []
+        for structure_id, structure_value in raw_structures.items():
+            if isinstance(structure_value, dict):
+                iterable.append({"id": structure_id, **structure_value})
+            else:
+                iterable.append({"id": structure_id, "kind": str(structure_value)})
+    elif isinstance(raw_structures, list):
+        iterable = raw_structures
+    else:
+        raise ParseError("'structures' must be a list or object.")
+
+    structures: list[GraphStructure] = []
+    seen_ids: set[str] = set()
+    for index, raw_structure in enumerate(iterable, start=1):
+        if not isinstance(raw_structure, dict):
+            raise ParseError("Each structure must be an object.")
+
+        structure_id = _optional_str(raw_structure.get("id")) or f"s{index}"
+        if structure_id in seen_ids:
+            raise ParseError(f"Duplicate structure id: {structure_id}")
+        seen_ids.add(structure_id)
+
+        kind = _optional_str(raw_structure.get("kind", raw_structure.get("type")))
+        if not kind:
+            raise ParseError(f"Structure '{structure_id}' must contain a kind.")
+
+        known = {
+            "id",
+            "kind",
+            "type",
+            "source",
+            "target",
+            "branches",
+            "edges",
+            "nodes",
+            "data",
+            "condition",
+            "label",
+            "metadata",
+        }
+        metadata = _metadata_with_unknown_fields(raw_structure, known)
+        structures.append(
+            GraphStructure(
+                id=structure_id,
+                kind=kind.lower().replace("_", "-"),
+                source=_optional_str(raw_structure.get("source")),
+                target=_optional_str(raw_structure.get("target")),
+                branches=_parse_structure_branches(raw_structure.get("branches", []), structure_id),
+                edges=_coerce_id_list(raw_structure.get("edges"), "edges"),
+                nodes=_coerce_id_list(raw_structure.get("nodes"), "nodes"),
+                data=_coerce_id_list(raw_structure.get("data"), "data"),
+                condition=_optional_str(raw_structure.get("condition")),
+                label=_optional_str(raw_structure.get("label")),
+                metadata=metadata,
+            )
+        )
+
+    return structures
+
+
+def _parse_structure_branches(raw_branches: Any, structure_id: str) -> list[StructureBranch]:
+    if raw_branches in (None, ""):
+        return []
+    if not isinstance(raw_branches, list):
+        raise ParseError(f"Structure '{structure_id}' branches must be a list.")
+
+    branches: list[StructureBranch] = []
+    seen_ids: set[str] = set()
+    for index, raw_branch in enumerate(raw_branches, start=1):
+        if isinstance(raw_branch, str):
+            raw_branch = {"id": raw_branch, "nodes": [raw_branch]}
+        if not isinstance(raw_branch, dict):
+            raise ParseError(f"Each branch in structure '{structure_id}' must be an object.")
+
+        branch_id = _optional_str(raw_branch.get("id")) or f"b{index}"
+        if branch_id in seen_ids:
+            raise ParseError(f"Duplicate branch id '{branch_id}' in structure '{structure_id}'.")
+        seen_ids.add(branch_id)
+
+        known = {
+            "id",
+            "source",
+            "target",
+            "edges",
+            "nodes",
+            "data",
+            "condition",
+            "label",
+            "metadata",
+        }
+        metadata = _metadata_with_unknown_fields(raw_branch, known)
+        branches.append(
+            StructureBranch(
+                id=branch_id,
+                source=_optional_str(raw_branch.get("source")),
+                target=_optional_str(raw_branch.get("target")),
+                edges=_coerce_id_list(raw_branch.get("edges"), "edges"),
+                nodes=_coerce_id_list(raw_branch.get("nodes"), "nodes"),
+                data=_coerce_id_list(raw_branch.get("data"), "data"),
+                condition=_optional_str(raw_branch.get("condition")),
+                label=_optional_str(raw_branch.get("label")),
+                metadata=metadata,
+            )
+        )
+
+    return branches
+
+
 def _graph_from_csv(
     content: str,
     *,
@@ -402,7 +531,7 @@ def _graph_from_csv(
     for node_id in [node_id for node_id in [start, *coerced_ends] if node_id]:
         nodes.setdefault(node_id, Node(id=node_id))
 
-    return _build_graph(nodes=nodes, edges=edges, start=start, ends=coerced_ends, metadata={})
+    return _build_graph(nodes=nodes, edges=edges, start=start, ends=coerced_ends, structures=[], metadata={})
 
 
 def _build_graph(
@@ -411,6 +540,7 @@ def _build_graph(
     edges: list[Edge],
     start: str | None,
     ends: set[str],
+    structures: list[GraphStructure],
     metadata: dict[str, Any],
 ) -> CDFDGraph:
     if not start:
@@ -435,7 +565,38 @@ def _build_graph(
         if edge.target not in nodes:
             raise ParseError(f"Edge '{edge.id}' references missing target '{edge.target}'.")
 
-    return CDFDGraph(nodes=nodes, edges=edges, start=start, ends=ends, metadata=metadata)
+    _validate_structures(structures, nodes, edges)
+
+    return CDFDGraph(nodes=nodes, edges=edges, start=start, ends=ends, structures=structures, metadata=metadata)
+
+
+def _validate_structures(
+    structures: list[GraphStructure],
+    nodes: dict[str, Node],
+    edges: list[Edge],
+) -> None:
+    edge_ids = {edge.id for edge in edges}
+    node_ids = set(nodes)
+
+    for structure in structures:
+        for node_id in [structure.source, structure.target, *structure.nodes]:
+            if node_id and node_id not in node_ids:
+                raise ParseError(f"Structure '{structure.id}' references missing node '{node_id}'.")
+        for edge_id in structure.edges:
+            if edge_id not in edge_ids:
+                raise ParseError(f"Structure '{structure.id}' references missing edge '{edge_id}'.")
+        for branch in structure.branches:
+            branch_label = branch.id or "branch"
+            for node_id in [branch.source, branch.target, *branch.nodes]:
+                if node_id and node_id not in node_ids:
+                    raise ParseError(
+                        f"Branch '{branch_label}' in structure '{structure.id}' references missing node '{node_id}'."
+                    )
+            for edge_id in branch.edges:
+                if edge_id not in edge_ids:
+                    raise ParseError(
+                        f"Branch '{branch_label}' in structure '{structure.id}' references missing edge '{edge_id}'."
+                    )
 
 
 def _infer_start(nodes: dict[str, Node], edges: list[Edge]) -> str:

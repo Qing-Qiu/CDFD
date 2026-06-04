@@ -91,11 +91,67 @@ def test_parse_json_graph_infers_start_and_ends_when_omitted():
     assert graph.ends == {"D"}
 
 
+def test_parse_json_graph_with_explicit_structures():
+    graph = parse_cdfd(
+        """
+        {
+          "start": "A",
+          "ends": ["D", "E"],
+          "nodes": ["A", "B", "C", "D", "E"],
+          "edges": [
+            {"id": "e1", "from": "A", "to": "B"},
+            {"id": "e2", "from": "A", "to": "C"},
+            {"id": "e3", "from": "B", "to": "D"},
+            {"id": "e4", "from": "C", "to": "E"}
+          ],
+          "structures": [
+            {
+              "id": "par_A",
+              "kind": "parallel",
+              "source": "A",
+              "branches": [
+                {"id": "left", "edges": ["e1", "e3"]},
+                {"id": "right", "edges": ["e2", "e4"]}
+              ]
+            }
+          ]
+        }
+        """,
+        "json",
+    )
+
+    assert graph.structures[0].id == "par_A"
+    assert graph.structures[0].kind == "parallel"
+    assert graph.structures[0].branches[1].edges == ["e2", "e4"]
+
+
 def test_parse_requires_start_when_auto_detection_is_ambiguous():
     with pytest.raises(ParseError, match="multiple candidates"):
         parse_cdfd(
             "from,to\nA,C\nB,C\n",
             "csv",
+        )
+
+
+def test_parse_rejects_structure_referencing_missing_edge():
+    with pytest.raises(ParseError, match="missing edge"):
+        parse_cdfd(
+            """
+            {
+              "start": "A",
+              "ends": ["B"],
+              "nodes": ["A", "B"],
+              "edges": [{"id": "e1", "from": "A", "to": "B"}],
+              "structures": [
+                {
+                  "id": "bad",
+                  "kind": "parallel",
+                  "branches": [{"id": "broken", "edges": ["missing"]}]
+                }
+              ]
+            }
+            """,
+            "json",
         )
 
 

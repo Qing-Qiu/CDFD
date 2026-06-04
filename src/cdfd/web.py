@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from cdfd.exporters import export_analysis, graph_to_dict, project_to_dict, render_svg
 from cdfd.multilevel import detect_project_cycles, find_project_paths
 from cdfd.parsers import ParseError, parse_project
-from cdfd.path_groups import build_path_groups
+from cdfd.path_groups import build_path_relations
 from cdfd.path_finder import PathFindingOptions, PathLimitExceeded
 
 
@@ -54,7 +54,12 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
             ),
             expand=payload.expand,
         )
-        path_groups = build_path_groups(paths)
+        path_relations = build_path_relations(
+            paths,
+            project=project if payload.expand else None,
+            graph=project.entry() if not payload.expand else None,
+            graph_name=project.entry_graph if payload.expand else None,
+        )
     except (ParseError, ValueError, PathLimitExceeded) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -63,11 +68,11 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
         "project": project_to_dict(project),
         "cycles": cycles,
         "paths": [path.model_dump() if hasattr(path, "model_dump") else path.dict() for path in paths],
-        "path_groups": [
-            group.model_dump() if hasattr(group, "model_dump") else group.dict()
-            for group in path_groups
+        "path_relations": [
+            relation.model_dump() if hasattr(relation, "model_dump") else relation.dict()
+            for relation in path_relations
         ],
-        "text": export_analysis(paths, path_groups, "text"),
+        "text": export_analysis(paths, path_relations, "text"),
         "svg": render_svg(graph, paths, graph_name=project.entry_graph),
         "graph_svgs": {
             name: render_svg(project_graph, paths, graph_name=name)
