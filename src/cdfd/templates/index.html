@@ -577,7 +577,7 @@
       for (const item of items) {
         const li = document.createElement("li");
         const label = item.title || item.kind;
-        const connector = item.kind === "parallel" ? " || " : " + ";
+        const connector = relationConnector(item.kind);
         li.textContent = `${item.id}: ${item.path_ids.join(connector)} | ${label}`;
         if (item.outputs.length) {
           li.textContent += ` | outputs: ${item.outputs.join(", ")}`;
@@ -587,6 +587,16 @@
         }
         pathRelations.appendChild(li);
       }
+    }
+
+    function relationConnector(kind) {
+      if (kind === "parallel") {
+        return " || ";
+      }
+      if (kind === "exclusive") {
+        return " XOR ";
+      }
+      return " + ";
     }
 
     function renderFunctionalScenarios(items) {

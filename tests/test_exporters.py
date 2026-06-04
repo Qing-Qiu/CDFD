@@ -81,7 +81,7 @@ def test_export_analysis_includes_path_relations_in_json():
     assert output["path_relations"][0]["kind"] == "parallel"
 
 
-def test_markdown_relations_use_parallel_symbol_only_for_parallel_paths():
+def test_markdown_relations_use_semantic_symbols_for_relation_kinds():
     graph = parse_cdfd(
         """
         {
@@ -104,7 +104,7 @@ def test_markdown_relations_use_parallel_symbol_only_for_parallel_paths():
 
     markdown = export_analysis(paths, relations, "markdown")
 
-    assert "| R1 | exclusive | P1 + P2 |" in markdown
+    assert "| R1 | exclusive | P1 XOR P2 |" in markdown
     assert "| R2 | parallel | P1 || P2 |" in markdown
 
 

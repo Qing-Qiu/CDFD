@@ -14,7 +14,13 @@ The generator reports:
 - `path_relations`: relationships between paths, such as `parallel`, `exclusive`, or `joined-output`.
 - `functional_scenarios`: inspection-oriented units derived from paths and process specifications.
 
-Parallel paths remain separate paths. The relation records that they can be considered independent or simultaneous. Functional scenarios keep a separate layer: each scenario references one or more path ids and adds process-specification context.
+Parallel paths remain separate paths. The relation records that they can be considered independent or simultaneous. When the generator infers parallelism from topology, it reports the largest mutually independent path sets it can prove, so three independent branches are shown as one relation instead of three pairwise relations. Functional scenarios keep a separate layer: each scenario references one or more path ids and adds process-specification context.
+
+Relation display symbols:
+
+- `P1 || P2`: parallel paths that can be considered independent.
+- `P1 XOR P2`: exclusive alternatives.
+- `P1 + P2`: joined-output paths that feed the same downstream output.
 
 Each path in JSON output includes:
 

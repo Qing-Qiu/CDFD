@@ -60,6 +60,36 @@ def test_builds_parallel_group_for_disjoint_output_paths():
     assert parallel[0].shared_prefix == ["IN", "A"]
 
 
+def test_infers_one_parallel_relation_for_three_independent_branches():
+    graph = parse_cdfd(
+        """
+        {
+          "start": "IN",
+          "ends": ["O1", "O2", "O3"],
+          "nodes": ["IN", "A", "B", "C", "D", "O1", "O2", "O3"],
+          "edges": [
+            {"from": "IN", "to": "A", "data": ["x"]},
+            {"from": "A", "to": "B", "data": ["x1"]},
+            {"from": "A", "to": "C", "data": ["x2"]},
+            {"from": "A", "to": "D", "data": ["x3"]},
+            {"from": "B", "to": "O1", "data": ["y1"]},
+            {"from": "C", "to": "O2", "data": ["y2"]},
+            {"from": "D", "to": "O3", "data": ["y3"]}
+          ]
+        }
+        """,
+        "json",
+    )
+
+    relations = build_path_relations(find_paths(graph))
+
+    parallel = [relation for relation in relations if relation.kind == "parallel"]
+    assert len(parallel) == 1
+    assert parallel[0].path_ids == ["P1", "P2", "P3"]
+    assert parallel[0].title == "3 paths can run in parallel"
+    assert parallel[0].shared_prefix == ["IN", "A"]
+
+
 def test_does_not_group_mutually_conditioned_alternatives_as_joined_output():
     graph = parse_cdfd(
         """

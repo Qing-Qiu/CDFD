@@ -221,7 +221,7 @@ def _append_text_relations(text: str, path_relations: list[PathRelation]) -> str
 
     lines = [text, "", "Path Relations:"]
     for relation in path_relations:
-        connector = " || " if relation.kind == "parallel" else " + "
+        connector = _relation_connector(relation.kind)
         lines.append(f"{relation.id} ({relation.kind}): {connector.join(relation.path_ids)}")
         if relation.title:
             lines.append(f"  {relation.title}")
@@ -245,7 +245,7 @@ def _append_markdown_relations(markdown: str, path_relations: list[PathRelation]
     for relation in path_relations:
         outputs = ", ".join(relation.outputs) if relation.outputs else "-"
         shared_prefix = " -> ".join(relation.shared_prefix) if relation.shared_prefix else "-"
-        connector = " || " if relation.kind == "parallel" else " + "
+        connector = _relation_connector(relation.kind)
         lines.append(
             f"| {relation.id} | {relation.kind} | {connector.join(relation.path_ids)} | {outputs} | {shared_prefix} |"
         )
@@ -287,6 +287,14 @@ def _append_markdown_scenarios(markdown: str, scenarios: list[FunctionalScenario
             f"| {scenario.id} | {', '.join(scenario.path_ids)} | {inputs} | {outputs} | {operations} |"
         )
     return "\n".join(lines)
+
+
+def _relation_connector(kind: str) -> str:
+    if kind == "parallel":
+        return " || "
+    if kind == "exclusive":
+        return " XOR "
+    return " + "
 
 
 def _layout_positions(graph: CDFDGraph) -> dict[str, tuple[int, int]]:

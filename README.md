@@ -113,6 +113,8 @@ Parallel paths are still separate paths. The relation between them is reported s
 R1 (parallel): P1 || P2
 ```
 
+For inferred topology, the generator reports maximal mutually independent path sets, such as `P1 || P2 || P3`, rather than only pairwise combinations. Exclusive alternatives use `XOR`, and joined-output relations use `+`.
+
 This keeps `paths` and functional scenarios separate. The tool reports atomic paths first, then derives functional scenarios as inspection-oriented wrappers around those paths.
 
 ## Functional Scenarios

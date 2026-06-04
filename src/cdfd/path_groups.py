@@ -196,14 +196,44 @@ def _joined_output_candidates(paths: list[PathResult]) -> list[list[tuple[int, P
 
 
 def _parallel_candidates(paths: list[PathResult]) -> list[list[tuple[int, PathResult]]]:
-    candidates: list[list[tuple[int, PathResult]]] = []
+    indexed_paths = list(enumerate(paths, start=1))
+    adjacency: dict[int, set[int]] = {index: set() for index, _ in indexed_paths}
 
-    for left_index, left in enumerate(paths, start=1):
-        for right_index, right in enumerate(paths[left_index:], start=left_index + 1):
+    for left_position, (left_index, left) in enumerate(indexed_paths):
+        for right_index, right in indexed_paths[left_position + 1 :]:
             if _can_run_in_parallel(left, right):
-                candidates.append([(left_index, left), (right_index, right)])
+                adjacency[left_index].add(right_index)
+                adjacency[right_index].add(left_index)
 
-    return candidates
+    candidates: list[list[tuple[int, PathResult]]] = []
+    for clique in _maximal_cliques(adjacency):
+        if len(clique) < 2:
+            continue
+        candidates.append([(index, paths[index - 1]) for index in sorted(clique)])
+    return sorted(candidates, key=lambda group: [index for index, _ in group])
+
+
+def _maximal_cliques(adjacency: dict[int, set[int]]) -> list[set[int]]:
+    cliques: list[set[int]] = []
+
+    def bron_kerbosch(r: set[int], p: set[int], x: set[int]) -> None:
+        if not p and not x:
+            cliques.append(set(r))
+            return
+
+        pivot = next(iter(p | x), None)
+        pivot_neighbors = adjacency[pivot] if pivot is not None else set()
+        for vertex in sorted(p - pivot_neighbors):
+            bron_kerbosch(
+                r | {vertex},
+                p & adjacency[vertex],
+                x & adjacency[vertex],
+            )
+            p.remove(vertex)
+            x.add(vertex)
+
+    bron_kerbosch(set(), set(adjacency), set())
+    return cliques
 
 
 def _make_relation(
