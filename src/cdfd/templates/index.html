@@ -529,7 +529,9 @@
       }
       for (const item of items) {
         const li = document.createElement("li");
-        li.textContent = formatRoute(item);
+        const label = item.id ? `${item.id}: ` : "";
+        const endpoints = item.source && item.sink ? ` | ${item.source} -> ${item.sink}` : "";
+        li.textContent = `${label}${formatRoute(item)}${endpoints}`;
         if (item.data.length) {
           li.textContent += ` | data: ${item.data.join(", ")}`;
         }
@@ -552,7 +554,8 @@
       for (const item of items) {
         const li = document.createElement("li");
         const label = item.title || item.kind;
-        li.textContent = `${item.id}: ${item.path_ids.join(" || ")} | ${label}`;
+        const connector = item.kind === "parallel" ? " || " : " + ";
+        li.textContent = `${item.id}: ${item.path_ids.join(connector)} | ${label}`;
         if (item.outputs.length) {
           li.textContent += ` | outputs: ${item.outputs.join(", ")}`;
         }
@@ -569,6 +572,9 @@
     }
 
     function formatRoute(item) {
+      if (item.route) {
+        return item.route;
+      }
       if (item.data.length === item.nodes.length - 1) {
         let route = item.nodes[0];
         for (let index = 0; index < item.data.length; index += 1) {

@@ -41,6 +41,7 @@ Other JSON examples:
 python -m cdfd.cli examples/choice.json
 python -m cdfd.cli examples/join.json
 python -m cdfd.cli examples/data_store.json
+python -m cdfd.cli examples/multilevel.json
 ```
 
 Generate expanded paths from a multi-level CDFD:
@@ -53,6 +54,17 @@ Output JSON analysis:
 
 ```bash
 python -m cdfd.cli examples/cdfd_v1.json --output-format json
+```
+
+JSON output gives each path a display id and endpoints:
+
+```json
+{
+  "id": "P1",
+  "source": "IN",
+  "sink": "OUT_X6",
+  "route": "IN --[x1]--> A --[x6]--> OUT_X6"
+}
 ```
 
 For graphs with cycles, use bounded traversal:
@@ -95,7 +107,7 @@ Parallel paths are still separate paths. The relation between them is reported s
 R1 (parallel): P1 || P2
 ```
 
-This keeps `paths` and functional scenarios separate. The tool currently generates paths plus path relations, not full functional scenarios.
+This keeps `paths` and functional scenarios separate. The tool currently generates atomic paths plus path relations, not full functional scenarios.
 
 ## JSON Format
 

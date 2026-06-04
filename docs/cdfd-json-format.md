@@ -6,14 +6,21 @@ The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json).
 
 ## Path Definition
 
-A path is a directed trace from a graph input/source node to an output/sink node through CDFD edges.
+A path is a directed trace from a graph input/source node to an output/sink node through CDFD edges. It is an atomic data-flow trace, not a full functional scenario.
 
 The generator reports:
 
 - `paths`: individual source-to-sink traces.
 - `path_relations`: relationships between paths, such as `parallel`, `exclusive`, or `joined-output`.
 
-Parallel paths remain separate paths. The relation records that they can be considered independent or simultaneous.
+Parallel paths remain separate paths. The relation records that they can be considered independent or simultaneous. A future functional-scenario layer can combine paths and relations, but this JSON output keeps those concepts separate.
+
+Each path in JSON output includes:
+
+- `id`: stable display id such as `P1`.
+- `source` and `sink`: the first and last node in the trace.
+- `route`: human-readable route with data labels.
+- `nodes`, `edges`, `data`, `outputs`, `preconditions`, and `conditions`: structured path details.
 
 ## Top-Level Object
 
@@ -136,3 +143,13 @@ Each branch can match paths by `edges`, `nodes`, `data`, `source`, `target`, or 
 ## Minimal Complete Example
 
 See [examples/cdfd_v1.json](../examples/cdfd_v1.json).
+
+## Multi-Level Lecture Example
+
+See [examples/multilevel.json](../examples/multilevel.json) for a CDFD with:
+
+- top-level processes `A1`, `A2`, `A3`, and `A4`;
+- process decomposition graphs `A1_detail`, `A3_detail`, and `A33_detail`;
+- state/control nodes `s1` and `s2`;
+- data labels such as `x1`, `x6`, `x7`, `y1`, `z2`, `d1`, and `d2`;
+- explicit `join`, `parallel`, and `choice` structures.

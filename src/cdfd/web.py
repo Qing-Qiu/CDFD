@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from cdfd.exporters import export_analysis, graph_to_dict, project_to_dict, render_svg
+from cdfd.exporters import export_analysis, graph_to_dict, paths_to_dicts, project_to_dict, render_svg
 from cdfd.multilevel import detect_project_cycles, find_project_paths
 from cdfd.parsers import ParseError, parse_project
 from cdfd.path_groups import build_path_relations
@@ -67,7 +67,7 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
         "graph": graph_to_dict(graph),
         "project": project_to_dict(project),
         "cycles": cycles,
-        "paths": [path.model_dump() if hasattr(path, "model_dump") else path.dict() for path in paths],
+        "paths": paths_to_dicts(paths),
         "path_relations": [
             relation.model_dump() if hasattr(relation, "model_dump") else relation.dict()
             for relation in path_relations

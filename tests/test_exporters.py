@@ -2,6 +2,7 @@ import json
 import re
 
 from cdfd.exporters import export_analysis, export_paths, render_svg
+from cdfd.models import PathRelation
 from cdfd.parsers import parse_cdfd
 from cdfd.path_finder import find_paths
 from cdfd.path_groups import build_path_relations
@@ -43,6 +44,10 @@ def test_export_paths_as_json_and_csv():
     json_output = export_paths(paths, "json")
     csv_output = export_paths(paths, "csv")
 
+    assert json.loads(json_output)[0]["id"] == "P1"
+    assert json.loads(json_output)[0]["source"] == "A"
+    assert json.loads(json_output)[0]["sink"] == "B"
+    assert json.loads(json_output)[0]["route"] == "A -> B"
     assert json.loads(json_output)[0]["nodes"] == ["A", "B"]
     assert "P1,A -> B,e1,," in csv_output
 
@@ -69,8 +74,38 @@ def test_export_analysis_includes_path_relations_in_json():
 
     output = json.loads(export_analysis(paths, build_path_relations(paths), "json"))
 
+    assert output["paths"][0]["id"] == "P1"
+    assert output["paths"][0]["source"] == "IN"
+    assert output["paths"][0]["sink"] == "O1"
     assert output["paths"][0]["nodes"] == ["IN", "A", "B", "O1"]
     assert output["path_relations"][0]["kind"] == "parallel"
+
+
+def test_markdown_relations_use_parallel_symbol_only_for_parallel_paths():
+    graph = parse_cdfd(
+        """
+        {
+          "start": "A",
+          "ends": ["B", "C"],
+          "nodes": ["A", "B", "C"],
+          "edges": [
+            {"id": "e1", "from": "A", "to": "B"},
+            {"id": "e2", "from": "A", "to": "C"}
+          ]
+        }
+        """,
+        "json",
+    )
+    paths = find_paths(graph)
+    relations = [
+        PathRelation(id="R1", kind="exclusive", path_ids=["P1", "P2"]),
+        PathRelation(id="R2", kind="parallel", path_ids=["P1", "P2"]),
+    ]
+
+    markdown = export_analysis(paths, relations, "markdown")
+
+    assert "| R1 | exclusive | P1 + P2 |" in markdown
+    assert "| R2 | parallel | P1 || P2 |" in markdown
 
 
 def test_render_svg_contains_nodes_and_edges():

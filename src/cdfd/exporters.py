@@ -23,7 +23,7 @@ def export_paths(paths: list[PathResult], output_format: str) -> str:
     if fmt == "text":
         return _export_text(paths)
     if fmt == "json":
-        return json.dumps([model_dump(path) for path in paths], indent=2)
+        return json.dumps(paths_to_dicts(paths), indent=2)
     if fmt == "csv":
         return _export_csv(paths)
     if fmt == "markdown":
@@ -36,7 +36,7 @@ def export_analysis(paths: list[PathResult], path_relations: list[PathRelation],
     if fmt == "json":
         return json.dumps(
             {
-                "paths": [model_dump(path) for path in paths],
+                "paths": paths_to_dicts(paths),
                 "path_relations": [model_dump(relation) for relation in path_relations],
             },
             indent=2,
@@ -48,6 +48,21 @@ def export_analysis(paths: list[PathResult], path_relations: list[PathRelation],
     if fmt == "csv":
         return _export_csv(paths)
     raise ValueError(f"Unsupported output format: {output_format}")
+
+
+def paths_to_dicts(paths: list[PathResult]) -> list[dict[str, object]]:
+    return [_path_to_dict(path, index) for index, path in enumerate(paths, start=1)]
+
+
+def _path_to_dict(path: PathResult, index: int) -> dict[str, object]:
+    raw = model_dump(path)
+    return {
+        **raw,
+        "id": f"P{index}",
+        "source": path.nodes[0] if path.nodes else None,
+        "sink": path.nodes[-1] if path.nodes else None,
+        "route": _path_route(path),
+    }
 
 
 def graph_to_dict(graph: CDFDGraph) -> dict[str, object]:
@@ -219,8 +234,9 @@ def _append_markdown_relations(markdown: str, path_relations: list[PathRelation]
     for relation in path_relations:
         outputs = ", ".join(relation.outputs) if relation.outputs else "-"
         shared_prefix = " -> ".join(relation.shared_prefix) if relation.shared_prefix else "-"
+        connector = " || " if relation.kind == "parallel" else " + "
         lines.append(
-            f"| {relation.id} | {relation.kind} | {' || '.join(relation.path_ids)} | {outputs} | {shared_prefix} |"
+            f"| {relation.id} | {relation.kind} | {connector.join(relation.path_ids)} | {outputs} | {shared_prefix} |"
         )
     return "\n".join(lines)
 

@@ -5,6 +5,7 @@ from jsonschema import Draft202012Validator
 
 from cdfd.multilevel import find_project_paths
 from cdfd.parsers import parse_project
+from cdfd.path_finder import find_paths
 from cdfd.path_groups import build_path_relations
 
 
@@ -79,6 +80,38 @@ def test_data_store_example_generates_paths_from_multiple_starts():
     ]
     assert [relation.kind for relation in relations] == ["joined-output"]
     assert relations[0].structure_id == "join_response_inputs"
+
+
+def test_multilevel_example_keeps_paths_and_relations_distinct():
+    project = _example_project("multilevel.json")
+
+    paths = find_project_paths(project)
+    relations = build_path_relations(paths, project=project)
+
+    assert [path.nodes for path in paths] == [
+        ["IN", "A12", "A11", "A13", "A2", "A4", "OUT_X6"],
+        ["IN", "A12", "A11", "A13", "A31", "A32", "A4", "OUT_X6"],
+        ["IN", "A12", "A11", "A13", "A31", "A331", "A333", "OUT_X7"],
+    ]
+    assert [(relation.kind, relation.path_ids, relation.structure_id) for relation in relations] == [
+        ("joined-output", ["P1", "P2"], "join_x6"),
+        ("parallel", ["P1", "P3"], "parallel_outputs"),
+        ("exclusive", ["P2", "P3"], "choice_A3_output"),
+    ]
+
+
+def test_multilevel_a33_detail_has_its_own_internal_choice():
+    project = _example_project("multilevel.json")
+    graph = project.graphs["A33_detail"]
+
+    paths = find_paths(graph)
+    relations = build_path_relations(paths, graph=graph, graph_name="A33_detail")
+
+    assert [path.data for path in paths] == [["d2"], ["d1", "z3"]]
+    assert len(relations) == 1
+    assert relations[0].kind == "exclusive"
+    assert set(relations[0].path_ids) == {"P1", "P2"}
+    assert relations[0].structure_id == "choice_A33_output"
 
 
 def _example_project(example_name: str):
