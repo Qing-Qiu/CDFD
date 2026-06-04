@@ -11,6 +11,7 @@ def test_parse_project_with_module_processes_and_graphs():
     project = parse_project(
         """
         {
+          "schema_version": "cdfd-json-v1",
           "module": {"name": "M", "behav": "Top", "type": ["int"], "var": ["x"]},
           "processes": [{"id": "A1", "pre": "x > 0", "post": "y = x", "decom": "A1_detail"}],
           "graphs": {
@@ -42,6 +43,7 @@ def test_parse_project_with_module_processes_and_graphs():
 def test_multilevel_paths_expand_decomposed_processes():
     content = """
     {
+      "schema_version": "cdfd-json-v1",
       "module": {"name": "M", "behav": "Top"},
       "processes": [
         {"id": "A1", "pre": "s1 == 1", "decom": "A1_detail"},
@@ -114,6 +116,7 @@ def test_no_expand_keeps_top_level_processes():
     project = parse_project(
         """
         {
+          "schema_version": "cdfd-json-v1",
           "module": {"behav": "Top"},
           "processes": [{"id": "A1", "decom": "A1_detail"}],
           "graphs": {
@@ -145,6 +148,7 @@ def test_rejects_missing_decomposition_graph():
         parse_project(
             json.dumps(
                 {
+                    "schema_version": "cdfd-json-v1",
                     "module": {"behav": "Top"},
                     "processes": [{"id": "A1", "decom": "Missing"}],
                     "graphs": {

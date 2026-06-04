@@ -18,7 +18,7 @@ CDFD means **Condition Data Flow Diagram**. In this project, a CDFD file contain
 
 YAML and CSV parser helpers still exist for older examples, but the project format for the assignment is JSON. See [docs/cdfd-json-format.md](docs/cdfd-json-format.md).
 
-The machine-readable schema is [docs/cdfd-json-schema.json](docs/cdfd-json-schema.json).
+The machine-readable schema is [docs/cdfd-json-schema.json](docs/cdfd-json-schema.json). JSON project input is validated against this schema before path generation.
 
 ## Install
 

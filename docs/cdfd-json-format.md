@@ -2,7 +2,7 @@
 
 This project currently accepts CDFD input as JSON. A valid file describes one CDFD project: module data, process specifications, graph layers, data/control flows, and explicit CDFD structures.
 
-The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json).
+The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json). JSON project input is validated against this schema before path generation.
 
 ## Path Definition
 
@@ -35,7 +35,7 @@ Each path in JSON output includes:
 
 Fields:
 
-- `schema_version`: recommended value `cdfd-json-v1`.
+- `schema_version`: required value `cdfd-json-v1`.
 - `module`: constants, types, variables, and entry CDFD.
 - `processes`: formal process specifications.
 - `graphs`: named CDFD layers.

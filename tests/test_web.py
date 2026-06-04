@@ -17,6 +17,39 @@ def test_web_analyze_endpoint():
             "input_format": "json",
             "content": """
             {
+              "schema_version": "cdfd-json-v1",
+              "module": {"behav": "Top"},
+              "processes": [],
+              "graphs": {
+                "Top": {
+                  "start": "A",
+                  "ends": ["B"],
+                  "nodes": ["A", "B"],
+                  "edges": [{"from": "A", "to": "B"}]
+                }
+              }
+            }
+            """,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["paths"][0]["nodes"] == ["A", "B"]
+    assert response.json()["paths"][0]["id"] == "P1"
+
+
+def test_web_analyze_rejects_json_that_does_not_match_project_schema():
+    from fastapi.testclient import TestClient
+
+    from cdfd.web import app
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/analyze",
+        json={
+            "input_format": "json",
+            "content": """
+            {
               "start": "A",
               "ends": ["B"],
               "nodes": ["A", "B"],
@@ -26,8 +59,9 @@ def test_web_analyze_endpoint():
         },
     )
 
-    assert response.status_code == 200
-    assert response.json()["paths"][0]["nodes"] == ["A", "B"]
+    assert response.status_code == 400
+    assert "CDFD JSON schema validation failed" in response.json()["detail"]
+    assert "schema_version" in response.json()["detail"]
 
 
 def test_web_index_page():
@@ -54,6 +88,7 @@ def test_web_analyze_multilevel_project():
             "input_format": "json",
             "content": """
             {
+              "schema_version": "cdfd-json-v1",
               "module": {"behav": "Top"},
               "processes": [{"id": "A1", "decom": "A1_detail"}],
               "graphs": {

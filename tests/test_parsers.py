@@ -1,6 +1,6 @@
 import pytest
 
-from cdfd.parsers import ParseError, parse_cdfd
+from cdfd.parsers import ParseError, parse_cdfd, parse_project
 
 
 def test_parse_json_graph():
@@ -89,6 +89,62 @@ def test_parse_json_graph_infers_start_and_ends_when_omitted():
 
     assert graph.start == "A"
     assert graph.ends == {"D"}
+
+
+def test_parse_project_rejects_json_missing_schema_version():
+    with pytest.raises(ParseError, match="schema_version"):
+        parse_project(
+            """
+            {
+              "module": {"behav": "Top"},
+              "processes": [],
+              "graphs": {
+                "Top": {
+                  "start": "A",
+                  "ends": ["B"],
+                  "nodes": ["A", "B"],
+                  "edges": [{"from": "A", "to": "B"}]
+                }
+              }
+            }
+            """,
+            "json",
+        )
+
+
+def test_parse_project_rejects_invalid_structure_kind_before_path_generation():
+    with pytest.raises(ParseError, match=r"\$\.graphs\.Top\.structures\.0\.kind"):
+        parse_project(
+            """
+            {
+              "schema_version": "cdfd-json-v1",
+              "module": {"behav": "Top"},
+              "processes": [],
+              "graphs": {
+                "Top": {
+                  "start": "A",
+                  "ends": ["B", "C"],
+                  "nodes": ["A", "B", "C"],
+                  "edges": [
+                    {"id": "e1", "from": "A", "to": "B"},
+                    {"id": "e2", "from": "A", "to": "C"}
+                  ],
+                  "structures": [
+                    {
+                      "id": "bad",
+                      "kind": "maybe-parallel",
+                      "branches": [
+                        {"id": "left", "edges": ["e1"]},
+                        {"id": "right", "edges": ["e2"]}
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+            """,
+            "json",
+        )
 
 
 def test_parse_json_graph_with_explicit_structures():

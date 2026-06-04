@@ -1,4 +1,5 @@
 import json
+from importlib.resources import files
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -11,6 +12,13 @@ from cdfd.path_groups import build_path_relations
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "docs" / "cdfd-json-schema.json"
+
+
+def test_packaged_json_schema_matches_documented_schema():
+    documented = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    packaged = json.loads(files("cdfd").joinpath("schemas", "cdfd-json-schema.json").read_text(encoding="utf-8"))
+
+    assert packaged == documented
 
 
 def test_official_json_examples_validate_against_schema():

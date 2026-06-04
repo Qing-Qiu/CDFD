@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import csv
 import json
+from functools import lru_cache
 from io import StringIO
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
 import yaml
+from jsonschema import Draft202012Validator, ValidationError
 
 from cdfd.models import (
     CDFDGraph,
@@ -85,6 +88,7 @@ def parse_project(
             data = json.loads(content)
         except json.JSONDecodeError as exc:
             raise ParseError(f"Invalid JSON: {exc}") from exc
+        _validate_project_json(data)
         return _project_from_mapping(data, start_override=start, ends_override=ends)
 
     if fmt == "yaml":
@@ -95,6 +99,41 @@ def parse_project(
         return _project_from_mapping(data, start_override=start, ends_override=ends)
 
     raise ParseError(f"Unsupported input format: {input_format}")
+
+
+def _validate_project_json(data: Any) -> None:
+    errors = sorted(_json_schema_validator().iter_errors(data), key=_schema_error_sort_key)
+    if not errors:
+        return
+
+    details = "; ".join(_format_schema_error(error) for error in errors[:3])
+    remaining = len(errors) - 3
+    if remaining > 0:
+        details = f"{details}; ... and {remaining} more error(s)"
+    raise ParseError(f"CDFD JSON schema validation failed: {details}")
+
+
+@lru_cache(maxsize=1)
+def _json_schema_validator() -> Draft202012Validator:
+    schema_path = files("cdfd").joinpath("schemas", "cdfd-json-schema.json")
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    return Draft202012Validator(schema)
+
+
+def _schema_error_sort_key(error: ValidationError) -> tuple[list[Any], list[Any]]:
+    return list(error.path), list(error.schema_path)
+
+
+def _format_schema_error(error: ValidationError) -> str:
+    path = _format_schema_path(error)
+    return f"{path}: {error.message}"
+
+
+def _format_schema_path(error: ValidationError) -> str:
+    if not error.path:
+        return "$"
+    return "$." + ".".join(str(part) for part in error.path)
 
 
 def _project_from_mapping(

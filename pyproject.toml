@@ -24,7 +24,7 @@ cdfd-web = "cdfd.web:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-cdfd = ["templates/*.html"]
+cdfd = ["templates/*.html", "schemas/*.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
