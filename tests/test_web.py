@@ -80,4 +80,5 @@ def test_web_analyze_multilevel_project():
     data = response.json()
     assert data["project"]["graph_count"] == 2
     assert data["paths"][0]["nodes"] == ["A11", "A12", "A2"]
+    assert data["path_groups"] == []
     assert set(data["graph_svgs"]) == {"Top", "A1_detail"}

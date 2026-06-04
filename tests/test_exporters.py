@@ -1,9 +1,10 @@
 import json
 import re
 
-from cdfd.exporters import export_paths, render_svg
+from cdfd.exporters import export_analysis, export_paths, render_svg
 from cdfd.parsers import parse_cdfd
 from cdfd.path_finder import find_paths
+from cdfd.path_groups import build_path_groups
 
 
 def test_export_paths_as_markdown():
@@ -44,6 +45,32 @@ def test_export_paths_as_json_and_csv():
 
     assert json.loads(json_output)[0]["nodes"] == ["A", "B"]
     assert "P1,A -> B,e1,," in csv_output
+
+
+def test_export_analysis_includes_path_groups_in_json():
+    graph = parse_cdfd(
+        """
+        {
+          "start": "IN",
+          "ends": ["O1", "O2"],
+          "nodes": ["IN", "A", "B", "C", "O1", "O2"],
+          "edges": [
+            {"from": "IN", "to": "A", "data": ["x1"]},
+            {"from": "A", "to": "B", "data": ["x2"]},
+            {"from": "A", "to": "C", "data": ["x3"]},
+            {"from": "B", "to": "O1", "data": ["x4"]},
+            {"from": "C", "to": "O2", "data": ["x5"]}
+          ]
+        }
+        """,
+        "json",
+    )
+    paths = find_paths(graph)
+
+    output = json.loads(export_analysis(paths, build_path_groups(paths), "json"))
+
+    assert output["paths"][0]["nodes"] == ["IN", "A", "B", "O1"]
+    assert output["path_groups"][0]["kind"] == "parallel"
 
 
 def test_render_svg_contains_nodes_and_edges():

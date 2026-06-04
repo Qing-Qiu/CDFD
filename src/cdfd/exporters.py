@@ -7,7 +7,7 @@ from collections import defaultdict, deque
 from io import StringIO
 from typing import Iterable
 
-from cdfd.models import CDFDGraph, CDFDProject, PathResult, model_dump
+from cdfd.models import CDFDGraph, CDFDProject, PathGroup, PathResult, model_dump
 
 NODE_WIDTH = 150
 NODE_HEIGHT = 48
@@ -28,6 +28,25 @@ def export_paths(paths: list[PathResult], output_format: str) -> str:
         return _export_csv(paths)
     if fmt == "markdown":
         return _export_markdown(paths)
+    raise ValueError(f"Unsupported output format: {output_format}")
+
+
+def export_analysis(paths: list[PathResult], path_groups: list[PathGroup], output_format: str) -> str:
+    fmt = output_format.lower()
+    if fmt == "json":
+        return json.dumps(
+            {
+                "paths": [model_dump(path) for path in paths],
+                "path_groups": [model_dump(group) for group in path_groups],
+            },
+            indent=2,
+        )
+    if fmt == "text":
+        return _append_text_groups(_export_text(paths), path_groups)
+    if fmt == "markdown":
+        return _append_markdown_groups(_export_markdown(paths), path_groups)
+    if fmt == "csv":
+        return _export_csv(paths)
     raise ValueError(f"Unsupported output format: {output_format}")
 
 
@@ -165,6 +184,41 @@ def _export_markdown(paths: list[PathResult]) -> str:
         preconditions = "; ".join(path.preconditions) if path.preconditions else "-"
         conditions = ", ".join(path.conditions) if path.conditions else "-"
         lines.append(f"| P{index} | {' -> '.join(path.nodes)} | {data} | {preconditions} | {conditions} |")
+    return "\n".join(lines)
+
+
+def _append_text_groups(text: str, path_groups: list[PathGroup]) -> str:
+    if not path_groups:
+        return f"{text}\n\nPath Groups: none detected."
+
+    lines = [text, "", "Path Groups:"]
+    for group in path_groups:
+        lines.append(f"{group.id} ({group.kind}): {' || '.join(group.path_ids)}")
+        if group.title:
+            lines.append(f"  {group.title}")
+        if group.outputs:
+            lines.append(f"  Outputs: {', '.join(group.outputs)}")
+        if group.shared_prefix:
+            lines.append(f"  Shared prefix: {' -> '.join(group.shared_prefix)}")
+    return "\n".join(lines)
+
+
+def _append_markdown_groups(markdown: str, path_groups: list[PathGroup]) -> str:
+    if not path_groups:
+        return f"{markdown}\n\nNo path groups detected."
+
+    lines = [
+        markdown,
+        "",
+        "| Group | Kind | Paths | Outputs | Shared Prefix |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for group in path_groups:
+        outputs = ", ".join(group.outputs) if group.outputs else "-"
+        shared_prefix = " -> ".join(group.shared_prefix) if group.shared_prefix else "-"
+        lines.append(
+            f"| {group.id} | {group.kind} | {' || '.join(group.path_ids)} | {outputs} | {shared_prefix} |"
+        )
     return "\n".join(lines)
 
 

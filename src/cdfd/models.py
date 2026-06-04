@@ -43,6 +43,21 @@ class PathResult(BaseModel):
     conditions: list[str] = Field(default_factory=list)
 
 
+class PathGroup(BaseModel):
+    id: str
+    kind: str
+    path_ids: list[str]
+    title: str | None = None
+    shared_prefix: list[str] = Field(default_factory=list)
+    nodes: list[str] = Field(default_factory=list)
+    edges: list[str] = Field(default_factory=list)
+    data: list[str] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
+    preconditions: list[str] = Field(default_factory=list)
+    conditions: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
 class ModuleInfo(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

@@ -187,6 +187,22 @@
       border-bottom: 0;
     }
 
+    .path-column {
+      display: grid;
+      gap: 12px;
+    }
+
+    .list-title {
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .group-list {
+      max-height: 240px;
+    }
+
     .visual {
       min-height: 360px;
       overflow: auto;
@@ -350,9 +366,20 @@
           <div class="metric"><span>Paths</span><strong id="pathCount">0</strong></div>
         </div>
         <div class="result-grid">
-          <ol id="paths" class="path-list">
-            <li class="empty">Run the generator to see paths.</li>
-          </ol>
+          <div class="path-column">
+            <div>
+              <div class="list-title">Linear paths</div>
+              <ol id="paths" class="path-list">
+                <li class="empty">Run the generator to see paths.</li>
+              </ol>
+            </div>
+            <div>
+              <div class="list-title">Path groups</div>
+              <ol id="pathGroups" class="path-list group-list">
+                <li class="empty">Run the generator to see groups.</li>
+              </ol>
+            </div>
+          </div>
           <div>
             <div class="visual-head">
               <div class="field">
@@ -378,6 +405,7 @@
     const runButton = document.getElementById("runButton");
     const message = document.getElementById("message");
     const paths = document.getElementById("paths");
+    const pathGroups = document.getElementById("pathGroups");
     const visual = document.getElementById("visual");
     const nodeCount = document.getElementById("nodeCount");
     const edgeCount = document.getElementById("edgeCount");
@@ -399,6 +427,7 @@
     runButton.addEventListener("click", async () => {
       setMessage("Generating paths.", "");
       paths.innerHTML = "";
+      pathGroups.innerHTML = "";
       visual.innerHTML = '<div class="empty">Working...</div>';
 
       const payload = {
@@ -436,6 +465,7 @@
         edgeCount.textContent = project.total_edges;
         pathCount.textContent = data.paths.length;
         renderPaths(data.paths);
+        renderPathGroups(data.path_groups || []);
         graphSvgs = data.graph_svgs || { [project.entry_graph || "main"]: data.svg };
         renderGraphSelector(project.entry_graph, graphSvgs);
 
@@ -451,6 +481,7 @@
         graphCount.textContent = "0";
         pathCount.textContent = "0";
         paths.innerHTML = '<li class="empty">No paths.</li>';
+        pathGroups.innerHTML = '<li class="empty">No groups.</li>';
         visual.innerHTML = '<div class="empty">No graph.</div>';
         graphLayer.innerHTML = '<option value="">-</option>';
         graphLayer.disabled = true;
@@ -482,6 +513,26 @@
           li.textContent += ` | conditions: ${item.conditions.join(", ")}`;
         }
         paths.appendChild(li);
+      }
+    }
+
+    function renderPathGroups(items) {
+      pathGroups.innerHTML = "";
+      if (!items.length) {
+        pathGroups.innerHTML = '<li class="empty">No path groups detected.</li>';
+        return;
+      }
+      for (const item of items) {
+        const li = document.createElement("li");
+        const label = item.title || item.kind;
+        li.textContent = `${item.id}: ${item.path_ids.join(" || ")} | ${label}`;
+        if (item.outputs.length) {
+          li.textContent += ` | outputs: ${item.outputs.join(", ")}`;
+        }
+        if (item.shared_prefix.length) {
+          li.textContent += ` | shared: ${item.shared_prefix.join(" -> ")}`;
+        }
+        pathGroups.appendChild(li);
       }
     }
 

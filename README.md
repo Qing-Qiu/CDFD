@@ -11,6 +11,7 @@ The project supports:
 - max-depth cycle handling
 - multi-level CDFD process decomposition
 - data-flow labels such as `x1`, `x6`, `y1`, and state/precondition labels such as `s1`
+- path groups for joined outputs and parallel independent flows
 - text, JSON, CSV, and Markdown outputs
 
 ## Install
@@ -142,6 +143,15 @@ For expanded multi-level paths, process preconditions are shown separately:
 Preconditions: A1: s1 == 1; A33: s2 == 2
 ```
 
+## Path Semantics
+
+The tool reports two related result types:
+
+- **Linear paths** are single source-to-sink traces through the CDFD graph. They are useful for checking every reachable data-flow route.
+- **Path groups** are semantic bundles of linear paths. A `joined-output` group means several compatible branches feed the same output slice. A `parallel` group means two paths share a prefix and then continue through disjoint downstream nodes/data without conflicting conditions.
+
+This distinction matters because CDFD branches are not always choices. For example, if two branches both feed process `A4` before output `x6`, those branches are part of one output computation, not two mutually exclusive executions.
+
 ## Cycle Strategies
 
 - `simple`: a path may not visit the same node twice.
@@ -193,3 +203,16 @@ When a decomposed process has multiple child exits, graph metadata can map child
   }
 }
 ```
+
+## Project File Checklist
+
+For a complete CDFD project file, include:
+
+- `module`: constants, types, variables, and `behav` entry graph when known.
+- `processes`: each process id, optional `pre`/`post`, and optional `decom` target graph.
+- `graphs`: every CDFD layer, including the top layer and decomposed process layers.
+- graph `nodes`: process, external, state, or other node types needed for display and analysis.
+- graph `edges`: `from`, `to`, optional `data`, optional `condition`, and `kind: "control"` for state/precondition arrows.
+- graph `metadata.outputs`: child end-node to parent output-data mapping when a decomposed process has multiple exits.
+
+Unknown extra fields are preserved in metadata, so the format can be extended later with stricter branch semantics when the course examples need them.
