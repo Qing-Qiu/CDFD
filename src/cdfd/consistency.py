@@ -100,8 +100,11 @@ def _inspect_data_stores(graph_name: str, graph: CDFDGraph) -> list[ConsistencyI
     for node_id, node in graph.nodes.items():
         if node.type != "data_store":
             continue
-        connected_data = _incoming_data(graph, node_id) | _outgoing_data(graph, node_id)
-        if not connected_data:
+        has_data_flow_connection = any(
+            edge.kind != "control" and (edge.source == node_id or edge.target == node_id)
+            for edge in graph.edges
+        )
+        if not has_data_flow_connection:
             issues.append(
                 _issue(
                     "disconnected-data-store",

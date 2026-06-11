@@ -21,13 +21,11 @@ from cdfd.models import (
     ProcessSpec,
     StructureBranch,
 )
+from cdfd.parsers.errors import ParseError
+from cdfd.parsers.sofl_xml import parse_sofl_cdfd_graph, parse_sofl_cdfd_project
 
 
-class ParseError(ValueError):
-    """Raised when CDFD input cannot be parsed into the common model."""
-
-
-SUPPORTED_FORMATS = {"json", "yaml", "yml", "csv"}
+SUPPORTED_FORMATS = {"json", "yaml", "yml", "csv", "cdfd"}
 
 
 def infer_format(path: str | Path) -> str:
@@ -65,6 +63,9 @@ def parse_cdfd(
     if fmt == "csv":
         return _graph_from_csv(content, start=start, ends=ends)
 
+    if fmt == "cdfd":
+        return parse_sofl_cdfd_graph(content, start=start, ends=ends)
+
     raise ParseError(f"Unsupported input format: {input_format}")
 
 
@@ -82,6 +83,9 @@ def parse_project(
     if fmt == "csv":
         graph = _graph_from_csv(content, start=start, ends=ends)
         return CDFDProject(graphs={"main": graph}, entry_graph="main")
+
+    if fmt == "cdfd":
+        return parse_sofl_cdfd_project(content, start=start, ends=ends)
 
     if fmt == "json":
         try:

@@ -387,10 +387,12 @@ def _node_fill(graph: CDFDGraph, node_id: str, node_type: str) -> str:
         return "#d8f3dc"
     if node_id in graph.ends:
         return "#ffe8cc"
-    if node_type == "decision":
+    if node_type in {"decision", "single_condition", "multiple_condition", "binary_condition", "nondeterministic"}:
         return "#e0e7ff"
-    if node_type == "data":
+    if node_type in {"data", "data_store"}:
         return "#fef9c3"
+    if node_type in {"broadcasting", "separating", "merging", "connecting", "renaming"}:
+        return "#dcfce7"
     if node_type == "external":
         return "#e5e7eb"
     if node_type == "state":

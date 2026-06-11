@@ -129,7 +129,26 @@
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "type": {
-          "enum": ["process", "external", "data_store", "state", "connector", "decision", "data", "start", "end"]
+          "enum": [
+            "process",
+            "external",
+            "data_store",
+            "state",
+            "connector",
+            "decision",
+            "data",
+            "start",
+            "end",
+            "single_condition",
+            "multiple_condition",
+            "binary_condition",
+            "broadcasting",
+            "separating",
+            "merging",
+            "connecting",
+            "nondeterministic",
+            "renaming"
+          ]
         },
         "label": { "type": "string" },
         "metadata": { "type": "object" }
@@ -140,7 +159,26 @@
       "type": "object",
       "properties": {
         "type": {
-          "enum": ["process", "external", "data_store", "state", "connector", "decision", "data", "start", "end"]
+          "enum": [
+            "process",
+            "external",
+            "data_store",
+            "state",
+            "connector",
+            "decision",
+            "data",
+            "start",
+            "end",
+            "single_condition",
+            "multiple_condition",
+            "binary_condition",
+            "broadcasting",
+            "separating",
+            "merging",
+            "connecting",
+            "nondeterministic",
+            "renaming"
+          ]
         },
         "label": { "type": "string" },
         "metadata": { "type": "object" }
@@ -160,7 +198,7 @@
         "source": { "type": "string" },
         "target": { "type": "string" },
         "kind": {
-          "enum": ["flow", "control", "shadow"]
+          "enum": ["flow", "active-flow", "control", "shadow"]
         },
         "data": { "$ref": "#/$defs/stringList" },
         "condition": { "type": "string" },

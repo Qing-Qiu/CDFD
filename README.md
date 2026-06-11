@@ -1,12 +1,13 @@
 # CDFD Path Generator
 
-A Python tool for generating paths from a CDFD JSON file.
+A Python tool for generating paths from CDFD project files.
 
 CDFD means **Condition Data Flow Diagram**. In this project, a CDFD file contains the module, processes, graph layers, data/control flows, and explicit structures needed to generate paths automatically.
 
 ## Current Scope
 
-- JSON input as the project format
+- JSON input as the canonical project format
+- SOFL desktop `.cdfd` XML import
 - CLI path generation
 - FastAPI web UI
 - simple-path cycle handling
@@ -16,7 +17,7 @@ CDFD means **Condition Data Flow Diagram**. In this project, a CDFD file contain
 - path relations for parallel, exclusive, and joined-output paths
 - text, JSON, CSV, and Markdown outputs
 
-YAML and CSV parser helpers still exist for older examples, but the project format for the assignment is JSON. See [docs/cdfd-json-format.md](docs/cdfd-json-format.md).
+YAML and CSV parser helpers still exist for older examples. JSON is the assignment/project exchange format, and `.cdfd` is supported so drawings exported from the SOFL desktop tool can be analyzed. See [docs/cdfd-json-format.md](docs/cdfd-json-format.md).
 
 The machine-readable schema is [docs/cdfd-json-schema.json](docs/cdfd-json-schema.json). JSON project input is validated against this schema before path generation.
 
@@ -44,6 +45,12 @@ python -m cdfd.cli examples/choice.json
 python -m cdfd.cli examples/join.json
 python -m cdfd.cli examples/data_store.json
 python -m cdfd.cli examples/multilevel.json
+```
+
+Import a SOFL desktop CDFD XML file:
+
+```bash
+python -m cdfd.cli examples/xuexitong.cdfd
 ```
 
 Generate expanded paths from a multi-level CDFD:
@@ -89,7 +96,7 @@ Then open:
 http://127.0.0.1:8000
 ```
 
-The web UI accepts JSON files and shows:
+The web UI accepts JSON and SOFL `.cdfd` files and shows:
 
 - linear paths
 - path relations

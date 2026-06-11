@@ -57,7 +57,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--format",
         default="auto",
-        choices=["auto", "json", "yaml", "yml", "csv"],
+        choices=["auto", "json", "yaml", "yml", "csv", "cdfd"],
         help="Input format. Defaults to auto by file extension.",
     )
     parser.add_argument("--start", help="Start node override. Required for CSV.")

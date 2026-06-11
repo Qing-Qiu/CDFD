@@ -1,6 +1,12 @@
 import pytest
+from pathlib import Path
 
-from cdfd.parsers import ParseError, parse_cdfd, parse_project
+from cdfd.multilevel import find_project_paths
+from cdfd.parsers import ParseError, infer_format, parse_cdfd, parse_project
+from cdfd.path_groups import build_path_relations
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_parse_json_graph():
@@ -253,3 +259,35 @@ def test_parse_rejects_missing_edge_node():
             """,
             "json",
         )
+
+
+def test_infer_format_accepts_sofl_cdfd_files():
+    assert infer_format("model.cdfd") == "cdfd"
+
+
+def test_parse_sofl_cdfd_xml_project_generates_paths():
+    project = parse_project((ROOT / "examples" / "xuexitong.cdfd").read_text(encoding="utf-8"), "cdfd")
+    graph = project.entry()
+
+    assert project.entry_graph == "xuexitong"
+    assert graph.starts == {"course_db", "user_db"}
+    assert graph.ends == {"homework_db", "查看我的课程"}
+    assert graph.nodes["single_condition_5"].type == "single_condition"
+    assert graph.edges[2].kind == "active-flow"
+    assert graph.edges[3].source == "single_condition_5"
+    assert graph.edges[3].target == "查看我的课程"
+    assert graph.edges[3].condition == "账号密码正确"
+
+    paths = find_project_paths(project)
+    relations = build_path_relations(paths, project=project)
+
+    assert [path.nodes for path in paths] == [
+        ["course_db", "查看我的课程"],
+        ["user_db", "userLogin", "single_condition_5", "查看我的课程"],
+        ["user_db", "userLogin", "single_condition_5", "修改作业", "homework_db"],
+        ["user_db", "userLogin", "single_condition_5", "提交作业", "homework_db"],
+    ]
+    assert paths[1].conditions == ["userAccount", "passWord", "账号密码正确"]
+    assert [(relation.kind, relation.path_ids, relation.structure_id) for relation in relations] == [
+        ("exclusive", ["P2", "P4", "P3"], "condition_single_condition_5")
+    ]

@@ -24,6 +24,8 @@ References:
 1. Keep JSON as the project input format.
    The JSON file represents the SOFL-style package: module declarations, process specifications, graph layers, decomposition links, data/control flows, and explicit structures.
 
+   The desktop SOFL tool's `.cdfd` XML is supported as an import format. It stores a single CDFD drawing as `componentList` plus `connectionList`; the importer maps that drawing into the JSON-equivalent internal model and keeps SOFL-specific layout/type metadata.
+
 2. Treat paths as atomic data-flow traces.
    A path is a source-to-sink trace through CDFD data-flow edges. Control/state edges are kept as conditions on the target process, not as path segments. Parallel, choice, and join semantics are represented separately as `path_relations`.
 
@@ -42,3 +44,13 @@ References:
 - a data store has no data-flow connection.
 
 These checks are warnings rather than hard failures because early-stage CDFD models are often incomplete. Schema errors still fail fast because they mean the file does not match the agreed JSON format.
+
+## Local SOFL Tool Notes
+
+The local SOFL tool directory shows that the CDFD editor supports these component families:
+
+- `Process`, `DataStore`
+- `SingleCondition`, `MultipleCondition`, `BinaryCondition`, `Nondeterministic`
+- `Broadcasting`, `Separating`, `Merging`, `Connecting`, `Renaming`
+
+It also distinguishes `DataFlow`, `ActiveDataFlow`, and `ControlDataFlow`. The importer therefore treats active data flow as a traversable path edge and control data flow as a condition-carrying edge.

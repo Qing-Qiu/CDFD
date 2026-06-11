@@ -287,11 +287,20 @@
       <div class="panel-heading">Input</div>
       <div class="panel-body">
         <div class="field">
-          <label for="fileInput">JSON file</label>
-          <input id="fileInput" type="file" accept=".json,application/json">
+          <label for="fileInput">CDFD file</label>
+          <input id="fileInput" type="file" accept=".json,.yaml,.yml,.csv,.cdfd,application/json,text/xml">
         </div>
 
         <div class="grid-two">
+          <div class="field">
+            <label for="inputFormat">Input Format</label>
+            <select id="inputFormat">
+              <option value="json">JSON</option>
+              <option value="cdfd">SOFL .cdfd</option>
+              <option value="yaml">YAML</option>
+              <option value="csv">CSV</option>
+            </select>
+          </div>
           <div class="field">
             <label for="strategy">Cycle Strategy</label>
             <select id="strategy">
@@ -447,6 +456,7 @@
     const content = document.getElementById("content");
     const runButton = document.getElementById("runButton");
     const message = document.getElementById("message");
+    const inputFormat = document.getElementById("inputFormat");
     const paths = document.getElementById("paths");
     const pathRelations = document.getElementById("pathRelations");
     const functionalScenarios = document.getElementById("functionalScenarios");
@@ -463,6 +473,10 @@
       const file = fileInput.files[0];
       if (!file) return;
       content.value = await file.text();
+      const suffix = file.name.split(".").pop().toLowerCase();
+      if (["json", "yaml", "yml", "csv", "cdfd"].includes(suffix)) {
+        inputFormat.value = suffix === "yml" ? "yaml" : suffix;
+      }
     });
 
     runButton.addEventListener("click", async () => {
@@ -475,7 +489,7 @@
 
       const payload = {
         content: content.value,
-        input_format: "json",
+        input_format: inputFormat.value,
         start: document.getElementById("start").value || null,
         ends: document.getElementById("ends").value || null,
         strategy: document.getElementById("strategy").value,

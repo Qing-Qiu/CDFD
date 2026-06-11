@@ -1,6 +1,8 @@
 # CDFD JSON Format v1
 
-This project currently accepts CDFD input as JSON. A valid file describes one CDFD project: module data, process specifications, graph layers, data/control flows, and explicit CDFD structures.
+This project uses JSON as its canonical CDFD project format. A valid file describes one CDFD project: module data, process specifications, graph layers, data/control flows, and explicit CDFD structures.
+
+The parser can also import SOFL tool `.cdfd` XML files. Those files are converted into the same internal graph/project model before path generation. JSON remains the documented exchange format because it can carry the complete module/process/decomposition data in one file.
 
 The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json). JSON project input is validated against this schema before path generation. See [cdfd-research-notes.md](cdfd-research-notes.md) for the SOFL/CDFD references that guide this format.
 
@@ -111,6 +113,8 @@ Common node types:
 - `data_store`: persistent data store.
 - `state`: state or condition store such as `1 s1`.
 - `connector`: control/data-flow helper node.
+- `single_condition`, `multiple_condition`, `binary_condition`: conditional CDFD structures.
+- `broadcasting`, `separating`, `merging`, `connecting`, `nondeterministic`, `renaming`: SOFL CDFD structure nodes used by the desktop SOFL tool.
 
 ## Edge
 
@@ -128,8 +132,35 @@ Common node types:
 `kind` values:
 
 - `flow`: normal active data flow.
+- `active-flow`: SOFL active data flow imported from `.cdfd` XML. It is traversed like a data-flow path edge.
 - `control`: control or state condition flow, rendered as dashed in the Web UI and collected as a path condition rather than traversed as a path edge.
 - `shadow`: placeholder flow carrying presence/absence information.
+
+## SOFL `.cdfd` Import
+
+SOFL desktop `.cdfd` files use XML with this shape:
+
+```xml
+<CDFD module="xuexitong">
+  <componentList>...</componentList>
+  <connectionList>...</connectionList>
+</CDFD>
+```
+
+The importer maps SOFL components to JSON-equivalent node types:
+
+- `process` -> `process`
+- `dataStore` -> `data_store`
+- `singleCondition`, `multipleCondition`, `binaryCondition` -> condition nodes
+- `broadcasting`, `separating`, `merging`, `connecting`, `nondeterministic`, `renaming` -> CDFD structure nodes
+
+Connection mapping:
+
+- `dataFlow` -> `flow`
+- `activeDataFlow` -> `active-flow`
+- `controlDataFlow` -> `control`
+
+The SOFL tool sometimes stores a visible line as `outSide -> outSide` even when its coordinates touch a component. The importer therefore first uses explicit `shapeIndex`/component names, then falls back to coordinate-based endpoint inference. This preserves realistic SOFL drawings such as [examples/xuexitong.cdfd](../examples/xuexitong.cdfd).
 
 ## Structure
 

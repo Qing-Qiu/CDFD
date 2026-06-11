@@ -20,6 +20,12 @@ def test_official_examples_have_no_cdfd_module_consistency_warnings():
         assert inspect_project_consistency(project) == []
 
 
+def test_sofl_cdfd_data_stores_are_connected_by_unlabeled_flows():
+    project = parse_project((ROOT / "examples" / "xuexitong.cdfd").read_text(encoding="utf-8"), "cdfd")
+
+    assert inspect_project_consistency(project) == []
+
+
 def test_consistency_check_reports_process_interface_mismatch():
     project = parse_project(
         """
