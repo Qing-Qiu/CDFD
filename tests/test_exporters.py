@@ -1,11 +1,15 @@
 import json
 import re
+from pathlib import Path
 
 from cdfd.exporters import export_analysis, export_paths, render_svg
 from cdfd.models import PathRelation
-from cdfd.parsers import parse_cdfd
+from cdfd.parsers import parse_cdfd, parse_project
 from cdfd.path_finder import find_paths
 from cdfd.path_groups import build_path_relations
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_export_paths_as_markdown():
@@ -184,6 +188,18 @@ def test_render_svg_places_control_state_near_target():
 
     assert abs(s1[0] - a1[0]) <= 90
     assert s1[1] < a1[1]
+
+
+def test_render_svg_uses_sofl_saved_component_layout():
+    project = parse_project((ROOT / "examples" / "xuexitong.cdfd").read_text(encoding="utf-8"), "cdfd")
+
+    svg = render_svg(project.entry())
+    user_login = _rect_position(svg, "userLogin")
+    course_db = _rect_position(svg, "course_db")
+
+    assert user_login == (375, 264)
+    assert course_db == (710, 60)
+    assert 'M477,180 L465,265' in svg
 
 
 def _rect_position(svg: str, node_id: str) -> tuple[int, int]:

@@ -46,6 +46,8 @@ STRUCTURE_KIND_BY_NODE_TYPE = {
 
 MERGE_NODE_TYPES = {"merging", "connecting"}
 COORDINATE_TOLERANCE = 36.0
+EXTERNAL_WIDTH = 120
+EXTERNAL_HEIGHT = 40
 
 
 @dataclass(frozen=True)
@@ -285,6 +287,7 @@ def _resolve_endpoint(
     label = _optional_str(connection.attrib.get("name"))
     prefix = "IN" if role == "from" else "OUT"
     external_id = _unique_id(f"{prefix}_{label or connection_index}", set(nodes))
+    layout = _external_endpoint_layout(x, y, role)
     nodes[external_id] = Node(
         id=external_id,
         type="external",
@@ -294,9 +297,22 @@ def _resolve_endpoint(
             "inferred_from": "outside-endpoint",
             "connection_index": connection_index,
             "role": role,
+            "layout": layout,
         },
     )
     return external_id
+
+
+def _external_endpoint_layout(x: float | None, y: float | None, role: str) -> dict[str, float] | None:
+    if x is None or y is None:
+        return None
+    box_x = x - EXTERNAL_WIDTH if role == "from" else x
+    return {
+        "x": box_x,
+        "y": y - EXTERNAL_HEIGHT / 2,
+        "width": EXTERNAL_WIDTH,
+        "height": EXTERNAL_HEIGHT,
+    }
 
 
 def _component_at_point(components: list[Component], x: float | None, y: float | None) -> Component | None:

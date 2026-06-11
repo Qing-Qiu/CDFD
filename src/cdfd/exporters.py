@@ -3,7 +3,9 @@ from __future__ import annotations
 import csv
 import html
 import json
+import re
 from collections import defaultdict, deque
+from dataclasses import dataclass
 from io import StringIO
 from typing import Iterable
 
@@ -16,6 +18,19 @@ Y_GAP = 125
 LEFT_PAD = 80
 TOP_PAD = 120
 CONTROL_GAP = 78
+MIN_NODE_WIDTH = 110
+MIN_NODE_HEIGHT = 34
+EXTERNAL_NODE_WIDTH = 120
+EXTERNAL_NODE_HEIGHT = 40
+EDGE_LANE_GAP = 18
+
+
+@dataclass(frozen=True)
+class LayoutContext:
+    positions: dict[str, tuple[int, int]]
+    sizes: dict[str, tuple[int, int]]
+    source_layout: bool = False
+    shift: tuple[int, int] = (0, 0)
 
 
 def export_paths(paths: list[PathResult], output_format: str) -> str:
@@ -104,11 +119,26 @@ def project_to_dict(project: CDFDProject) -> dict[str, object]:
 
 
 def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_name: str | None = None) -> str:
-    positions = _layout_positions(graph)
+    layout = _layout_context(graph)
+    positions = layout.positions
+    sizes = layout.sizes
 
-    width = max((x for x, _ in positions.values()), default=LEFT_PAD) + NODE_WIDTH + LEFT_PAD
-    height = max((y for _, y in positions.values()), default=TOP_PAD) + NODE_HEIGHT + TOP_PAD
+    width = (
+        max(
+            (x + sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))[0] for node_id, (x, _) in positions.items()),
+            default=LEFT_PAD,
+        )
+        + LEFT_PAD
+    )
+    height = (
+        max(
+            (y + sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))[1] for node_id, (_, y) in positions.items()),
+            default=TOP_PAD,
+        )
+        + TOP_PAD
+    )
     highlighted_edges = _highlighted_edges(paths[0].edges if paths else [], graph_name)
+    edge_offsets = _edge_offsets(graph)
 
     parts = [
         f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="CDFD graph" xmlns="http://www.w3.org/2000/svg">',
@@ -122,48 +152,46 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         "</defs>",
     ]
 
-    for edge in graph.edges:
+    for edge_index, edge in enumerate(graph.edges, start=1):
         if edge.source not in positions or edge.target not in positions:
             continue
-        sx, sy = positions[edge.source]
-        tx, ty = positions[edge.target]
+        x1, y1, x2, y2 = _edge_endpoints(edge, layout, edge_offsets.get(edge.id, 0))
         label = _edge_label(edge)
         color = "#b45309" if edge.id in highlighted_edges else "#4b5563"
         marker = "arrow-highlight" if edge.id in highlighted_edges else "arrow"
         stroke_width = "3" if edge.id in highlighted_edges else "2"
         dash = ' stroke-dasharray="6 5"' if edge.kind == "control" else ""
-        if edge.kind == "control":
-            x1, y1 = sx + NODE_WIDTH / 2, sy + NODE_HEIGHT
-            x2, y2 = tx + NODE_WIDTH / 2, ty
-            control_y = (y1 + y2) / 2
-            path_d = f"M{x1},{y1} C{x1},{control_y} {x2},{control_y} {x2},{y2}"
+        if layout.source_layout:
+            path_d = _source_layout_path(edge, x1, y1, x2, y2, edge_index)
+        elif edge.kind == "control":
+            path_d = _control_edge_path(x1, y1, x2, y2, edge_index)
         else:
-            x1, y1 = sx + NODE_WIDTH, sy + NODE_HEIGHT / 2
-            x2, y2 = tx, ty + NODE_HEIGHT / 2
-            if x2 <= x1:
-                mid_y = min(y1, y2) - 34
-                path_d = f"M{x1},{y1} C{x1 + 50},{mid_y} {x2 - 50},{mid_y} {x2},{y2}"
-            else:
-                mid_x = (x1 + x2) // 2
-                path_d = f"M{x1},{y1} C{mid_x},{y1} {mid_x},{y2} {x2},{y2}"
+            path_d = _data_edge_path(x1, y1, x2, y2, edge_offsets.get(edge.id, 0))
         parts.append(
             f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{stroke_width}"{dash} marker-end="url(#{marker})" />'
         )
         if label:
-            lx, ly = (x1 + x2) // 2, (y1 + y2) // 2 - 8
+            lx, ly = _edge_label_position(path_d, x1, y1, x2, y2)
+            escaped_label = html.escape(label)
+            label_width = max(28, min(180, len(label) * 8 + 16))
             parts.append(
-                f'<text x="{lx}" y="{ly}" text-anchor="middle" font-size="12" fill="#374151">{html.escape(label)}</text>'
+                f'<rect x="{lx - label_width / 2:.1f}" y="{ly - 15:.1f}" width="{label_width}" height="18" rx="3" fill="#ffffff" opacity="0.9" />'
             )
+            parts.append(f'<text x="{lx}" y="{ly}" text-anchor="middle" font-size="12" fill="#374151">{escaped_label}</text>')
 
     for node_id, node in graph.nodes.items():
         x, y = positions[node_id]
+        width, height = sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))
         fill = _node_fill(graph, node_id, node.type)
         label = node.label or node.id
+        font_size = 12 if height < 42 else 14
+        text_y = y + height / 2 + font_size / 3
+        radius = 5 if node.type == "data_store" else 8
         parts.append(
-            f'<rect data-node-id="{html.escape(node_id)}" x="{x}" y="{y}" width="{NODE_WIDTH}" height="{NODE_HEIGHT}" rx="8" fill="{fill}" stroke="#2f6f73" stroke-width="1.5" />'
+            f'<rect data-node-id="{html.escape(node_id)}" x="{x}" y="{y}" width="{width}" height="{height}" rx="{radius}" fill="{fill}" stroke="#2f6f73" stroke-width="1.5" />'
         )
         parts.append(
-            f'<text x="{x + NODE_WIDTH / 2}" y="{y + 29}" text-anchor="middle" font-size="14" font-family="Arial, sans-serif" fill="#111827">{html.escape(label)}</text>'
+            f'<text x="{x + width / 2}" y="{text_y}" text-anchor="middle" font-size="{font_size}" font-family="Arial, sans-serif" fill="#111827">{html.escape(label)}</text>'
         )
 
     parts.append("</svg>")
@@ -297,14 +325,47 @@ def _relation_connector(kind: str) -> str:
     return " + "
 
 
+def _layout_context(graph: CDFDGraph) -> LayoutContext:
+    source_layout = _source_layout_context(graph)
+    if source_layout:
+        return source_layout
+
+    positions = _layout_positions(graph)
+    sizes = {node_id: _default_node_size(graph.nodes[node_id].type) for node_id in graph.nodes}
+    return LayoutContext(positions=positions, sizes=sizes)
+
+
+def _source_layout_context(graph: CDFDGraph) -> LayoutContext | None:
+    raw_positions: dict[str, tuple[int, int]] = {}
+    sizes: dict[str, tuple[int, int]] = {}
+
+    for node_id, node in graph.nodes.items():
+        layout = _node_layout(node)
+        if layout is None:
+            continue
+        x, y, width, height = layout
+        raw_positions[node_id] = (x, y)
+        sizes[node_id] = (width, height)
+
+    if not raw_positions:
+        return None
+
+    positions = dict(raw_positions)
+    _place_unpositioned_nodes(graph, positions, sizes)
+    positions, shift = _normalize_source_layout(positions)
+    for node_id, node in graph.nodes.items():
+        sizes.setdefault(node_id, _default_node_size(node.type))
+
+    return LayoutContext(positions=positions, sizes=sizes, source_layout=True, shift=shift)
+
+
 def _layout_positions(graph: CDFDGraph) -> dict[str, tuple[int, int]]:
     levels = _assign_levels(graph)
     ordered_levels: dict[int, list[str]] = defaultdict(list)
     for node_id, level in levels.items():
         ordered_levels[level].append(node_id)
 
-    for level_nodes in ordered_levels.values():
-        level_nodes.sort()
+    _order_levels_by_neighbors(graph, ordered_levels)
 
     positions: dict[str, tuple[int, int]] = {}
     for level, node_ids in sorted(ordered_levels.items()):
@@ -317,8 +378,9 @@ def _layout_positions(graph: CDFDGraph) -> dict[str, tuple[int, int]]:
 
 
 def _assign_levels(graph: CDFDGraph) -> dict[str, int]:
-    levels: dict[str, int] = {graph.start: 0}
-    queue: deque[str] = deque([graph.start])
+    roots = sorted(graph.starts or {graph.start})
+    levels: dict[str, int] = {root: 0 for root in roots}
+    queue: deque[str] = deque(roots)
 
     while queue:
         node_id = queue.popleft()
@@ -342,6 +404,31 @@ def _assign_levels(graph: CDFDGraph) -> dict[str, int]:
     return levels
 
 
+def _order_levels_by_neighbors(graph: CDFDGraph, ordered_levels: dict[int, list[str]]) -> None:
+    for level_nodes in ordered_levels.values():
+        level_nodes.sort()
+
+    previous_order: dict[str, int] = {}
+    for level in sorted(ordered_levels):
+        nodes = ordered_levels[level]
+        if not previous_order:
+            previous_order = {node_id: index for index, node_id in enumerate(nodes)}
+            continue
+
+        def score(node_id: str) -> tuple[float, str]:
+            predecessors = [
+                edge.source
+                for edge in graph.incoming_edges(node_id)
+                if edge.kind != "control" and edge.source in previous_order
+            ]
+            if not predecessors:
+                return (float(len(previous_order) + len(nodes)), node_id)
+            return (sum(previous_order[source] for source in predecessors) / len(predecessors), node_id)
+
+        nodes.sort(key=score)
+        previous_order = {node_id: index for index, node_id in enumerate(nodes)}
+
+
 def _place_control_nodes(graph: CDFDGraph, positions: dict[str, tuple[int, int]]) -> None:
     by_target: dict[str, list[str]] = defaultdict(list)
     for edge in graph.edges:
@@ -359,27 +446,183 @@ def _place_control_nodes(graph: CDFDGraph, positions: dict[str, tuple[int, int]]
             positions[source_id] = (int(tx + offset), int(ty - CONTROL_GAP))
 
 
-def _place_unpositioned_nodes(graph: CDFDGraph, positions: dict[str, tuple[int, int]]) -> None:
+def _place_unpositioned_nodes(
+    graph: CDFDGraph,
+    positions: dict[str, tuple[int, int]],
+    sizes: dict[str, tuple[int, int]] | None = None,
+) -> None:
     if not graph.nodes:
         return
-    next_x = max((x for x, _ in positions.values()), default=LEFT_PAD - X_GAP) + X_GAP
+    sizes = sizes or {}
+    next_x = (
+        max(
+            (x + sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))[0] for node_id, (x, _) in positions.items()),
+            default=LEFT_PAD - X_GAP,
+        )
+        + X_GAP
+    )
     next_y = TOP_PAD
     for node_id in graph.nodes:
         if node_id not in positions:
             positions[node_id] = (next_x, next_y)
+            sizes.setdefault(node_id, _default_node_size(graph.nodes[node_id].type))
             next_y += Y_GAP
 
 
 def _shift_into_view(positions: dict[str, tuple[int, int]]) -> dict[str, tuple[int, int]]:
+    shifted, _ = _shift_into_view_with_delta(positions)
+    return shifted
+
+
+def _shift_into_view_with_delta(positions: dict[str, tuple[int, int]]) -> tuple[dict[str, tuple[int, int]], tuple[int, int]]:
     if not positions:
-        return positions
+        return positions, (0, 0)
     min_x = min(x for x, _ in positions.values())
     min_y = min(y for _, y in positions.values())
     dx = max(0, LEFT_PAD - min_x)
     dy = max(0, TOP_PAD / 2 - min_y)
     if not dx and not dy:
-        return positions
-    return {node_id: (int(x + dx), int(y + dy)) for node_id, (x, y) in positions.items()}
+        return positions, (0, 0)
+    return {node_id: (int(x + dx), int(y + dy)) for node_id, (x, y) in positions.items()}, (int(dx), int(dy))
+
+
+def _normalize_source_layout(positions: dict[str, tuple[int, int]]) -> tuple[dict[str, tuple[int, int]], tuple[int, int]]:
+    if not positions:
+        return positions, (0, 0)
+    min_x = min(x for x, _ in positions.values())
+    min_y = min(y for _, y in positions.values())
+    dx = int(LEFT_PAD - min_x)
+    dy = int(TOP_PAD / 2 - min_y)
+    if not dx and not dy:
+        return positions, (0, 0)
+    return {node_id: (int(x + dx), int(y + dy)) for node_id, (x, y) in positions.items()}, (dx, dy)
+
+
+def _node_layout(node) -> tuple[int, int, int, int] | None:
+    raw_layout = node.metadata.get("layout")
+    if not isinstance(raw_layout, dict):
+        return None
+    x = _optional_number(raw_layout.get("x"))
+    y = _optional_number(raw_layout.get("y"))
+    if x is None or y is None:
+        return None
+    default_width, default_height = _default_node_size(node.type)
+    width = max(MIN_NODE_WIDTH, int(_optional_number(raw_layout.get("width")) or default_width))
+    height = max(MIN_NODE_HEIGHT, int(_optional_number(raw_layout.get("height")) or default_height))
+    return int(x), int(y), width, height
+
+
+def _default_node_size(node_type: str) -> tuple[int, int]:
+    if node_type == "external":
+        return EXTERNAL_NODE_WIDTH, EXTERNAL_NODE_HEIGHT
+    if node_type == "data_store":
+        return 130, 34
+    if node_type.endswith("_condition") or node_type in {"broadcasting", "separating", "merging", "connecting"}:
+        return 132, 54
+    return NODE_WIDTH, NODE_HEIGHT
+
+
+def _edge_offsets(graph: CDFDGraph) -> dict[str, int]:
+    by_pair: dict[tuple[str, str, str], list[str]] = defaultdict(list)
+    for edge in graph.edges:
+        by_pair[(edge.source, edge.target, edge.kind)].append(edge.id)
+
+    offsets: dict[str, int] = {}
+    for edge_ids in by_pair.values():
+        if len(edge_ids) == 1:
+            offsets[edge_ids[0]] = 0
+            continue
+        for index, edge_id in enumerate(edge_ids):
+            offsets[edge_id] = int((index - (len(edge_ids) - 1) / 2) * EDGE_LANE_GAP)
+    return offsets
+
+
+def _edge_endpoints(edge, layout: LayoutContext, offset: int) -> tuple[int, int, int, int]:
+    if layout.source_layout:
+        raw = _raw_edge_points(edge)
+        if raw:
+            x1, y1, x2, y2 = raw
+            dx, dy = layout.shift
+            return int(x1 + dx), int(y1 + dy), int(x2 + dx), int(y2 + dy)
+
+    sx, sy = layout.positions[edge.source]
+    tx, ty = layout.positions[edge.target]
+    sw, sh = layout.sizes.get(edge.source, (NODE_WIDTH, NODE_HEIGHT))
+    tw, th = layout.sizes.get(edge.target, (NODE_WIDTH, NODE_HEIGHT))
+
+    if edge.kind == "control":
+        return (
+            int(sx + sw / 2 + offset),
+            int(sy + sh),
+            int(tx + tw / 2 + offset),
+            int(ty),
+        )
+
+    source_center = (sx + sw / 2, sy + sh / 2)
+    target_center = (tx + tw / 2, ty + th / 2)
+    dx = target_center[0] - source_center[0]
+    dy = target_center[1] - source_center[1]
+
+    if abs(dx) >= abs(dy):
+        if dx >= 0:
+            return int(sx + sw), int(sy + sh / 2 + offset), int(tx), int(ty + th / 2 + offset)
+        return int(sx), int(sy + sh / 2 + offset), int(tx + tw), int(ty + th / 2 + offset)
+
+    if dy >= 0:
+        return int(sx + sw / 2 + offset), int(sy + sh), int(tx + tw / 2 + offset), int(ty)
+    return int(sx + sw / 2 + offset), int(sy), int(tx + tw / 2 + offset), int(ty + th)
+
+
+def _raw_edge_points(edge) -> tuple[int, int, int, int] | None:
+    raw_layout = edge.metadata.get("layout")
+    if not isinstance(raw_layout, dict):
+        return None
+    from_x = _optional_number(raw_layout.get("fromX"))
+    from_y = _optional_number(raw_layout.get("fromY"))
+    to_x = _optional_number(raw_layout.get("toX"))
+    to_y = _optional_number(raw_layout.get("toY"))
+    if None in (from_x, from_y, to_x, to_y):
+        return None
+    return int(from_x), int(from_y), int(to_x), int(to_y)
+
+
+def _source_layout_path(edge, x1: int, y1: int, x2: int, y2: int, edge_index: int) -> str:
+    if edge.kind == "control":
+        return _control_edge_path(x1, y1, x2, y2, edge_index)
+    return f"M{x1},{y1} L{x2},{y2}"
+
+
+def _control_edge_path(x1: int, y1: int, x2: int, y2: int, edge_index: int) -> str:
+    lane = min(y1, y2) - CONTROL_GAP - (edge_index % 3) * 12
+    if lane > min(y1, y2) - 24:
+        lane = min(y1, y2) - 24
+    return f"M{x1},{y1} L{x1},{lane} L{x2},{lane} L{x2},{y2}"
+
+
+def _data_edge_path(x1: int, y1: int, x2: int, y2: int, offset: int) -> str:
+    if abs(y1 - y2) <= 8:
+        return f"M{x1},{y1} L{x2},{y2}"
+    if abs(x2 - x1) >= 64:
+        mid_x = int((x1 + x2) / 2 + offset)
+        return f"M{x1},{y1} L{mid_x},{y1} L{mid_x},{y2} L{x2},{y2}"
+    lane_y = min(y1, y2) - 36 - abs(offset)
+    return f"M{x1},{y1} L{x1},{lane_y} L{x2},{lane_y} L{x2},{y2}"
+
+
+def _edge_label_position(path_d: str, x1: int, y1: int, x2: int, y2: int) -> tuple[int, int]:
+    points = [(int(x), int(y)) for x, y in re.findall(r"(-?\d+),(-?\d+)", path_d)]
+    if len(points) >= 4:
+        return points[len(points) // 2]
+    return int((x1 + x2) / 2), int((y1 + y2) / 2 - 8)
+
+
+def _optional_number(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _node_fill(graph: CDFDGraph, node_id: str, node_type: str) -> str:
