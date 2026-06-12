@@ -204,26 +204,88 @@
     }
 
     .visual {
-      min-height: 360px;
-      overflow: auto;
+      position: relative;
+      min-height: 460px;
+      overflow: hidden;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #ffffff;
-      padding: 12px;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
     }
 
-    .visual svg {
-      width: 100%;
-      min-width: 520px;
-      height: auto;
+    .visual.dragging {
+      cursor: grabbing;
+    }
+
+    .visual > svg {
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: block;
+      max-width: none;
+      transform-origin: 0 0;
+      will-change: transform;
     }
 
     .visual-head {
-      display: grid;
-      grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+      display: flex;
+      justify-content: space-between;
       gap: 10px;
       margin-bottom: 10px;
       align-items: end;
+    }
+
+    .visual-head .field {
+      width: min(220px, 100%);
+      margin-bottom: 0;
+    }
+
+    .graph-tools {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 40px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+    }
+
+    .graph-tool {
+      width: 34px;
+      height: 32px;
+      min-height: 32px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .graph-tool:hover:not(:disabled) {
+      border-color: var(--line);
+      background: #f1f4f6;
+    }
+
+    .graph-tool:disabled {
+      cursor: default;
+      opacity: 0.4;
+    }
+
+    .graph-tool.fit-icon {
+      font-size: 16px;
+    }
+
+    .zoom-level {
+      width: 52px;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
     }
 
     .message {
@@ -273,6 +335,19 @@
       .result-grid,
       .summary {
         grid-template-columns: 1fr;
+      }
+
+      .visual-head {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .visual-head .field {
+        width: 100%;
+      }
+
+      .graph-tools {
+        align-self: flex-start;
       }
     }
   </style>
@@ -441,6 +516,13 @@
                   <option value="">-</option>
                 </select>
               </div>
+              <div class="graph-tools" role="toolbar" aria-label="Graph view controls">
+                <button id="zoomOut" class="graph-tool" type="button" title="Zoom out" aria-label="Zoom out" disabled>&minus;</button>
+                <output id="zoomLevel" class="zoom-level" aria-live="polite">100%</output>
+                <button id="zoomIn" class="graph-tool" type="button" title="Zoom in" aria-label="Zoom in" disabled>+</button>
+                <button id="resetZoom" class="graph-tool fit-icon" type="button" title="Actual size" aria-label="Actual size" disabled>1:1</button>
+                <button id="fitGraph" class="graph-tool fit-icon" type="button" title="Fit graph to view" aria-label="Fit graph to view" disabled>&#9635;</button>
+              </div>
             </div>
             <div id="visual" class="visual">
               <div class="empty">Graph visualization will appear here.</div>
@@ -467,7 +549,19 @@
     const graphCount = document.getElementById("graphCount");
     const pathCount = document.getElementById("pathCount");
     const graphLayer = document.getElementById("graphLayer");
+    const zoomOut = document.getElementById("zoomOut");
+    const zoomIn = document.getElementById("zoomIn");
+    const resetZoom = document.getElementById("resetZoom");
+    const fitGraph = document.getElementById("fitGraph");
+    const zoomLevel = document.getElementById("zoomLevel");
     let graphSvgs = {};
+    let graphViewStates = {};
+    let activeGraphName = "";
+    let graphSvg = null;
+    let graphSize = { width: 0, height: 0 };
+    let dragState = null;
+    const MIN_SCALE = 0.2;
+    const MAX_SCALE = 3;
 
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files[0];
@@ -486,6 +580,7 @@
       functionalScenarios.innerHTML = "";
       consistencyIssues.innerHTML = "";
       visual.innerHTML = '<div class="empty">Working...</div>';
+      disableGraphControls();
 
       const payload = {
         content: content.value,
@@ -526,6 +621,7 @@
         renderFunctionalScenarios(data.functional_scenarios || []);
         renderConsistencyIssues(data.consistency_issues || []);
         graphSvgs = data.graph_svgs || { [project.entry_graph || "main"]: data.svg };
+        graphViewStates = {};
         renderGraphSelector(project.entry_graph, graphSvgs);
 
         const cycleCount = Object.values(data.cycles).reduce((total, graphCycles) => total + graphCycles.length, 0);
@@ -550,13 +646,182 @@
         graphLayer.innerHTML = '<option value="">-</option>';
         graphLayer.disabled = true;
         graphSvgs = {};
+        graphViewStates = {};
+        activeGraphName = "";
+        graphSvg = null;
+        disableGraphControls();
         setMessage(error.message, "error");
       }
     });
 
     graphLayer.addEventListener("change", () => {
-      visual.innerHTML = graphSvgs[graphLayer.value] || '<div class="empty">No graph.</div>';
+      mountGraph(graphLayer.value);
     });
+
+    zoomOut.addEventListener("click", () => zoomGraph(1 / 1.2));
+    zoomIn.addEventListener("click", () => zoomGraph(1.2));
+    resetZoom.addEventListener("click", resetGraphZoom);
+    fitGraph.addEventListener("click", fitGraphToView);
+
+    visual.addEventListener("wheel", (event) => {
+      if (!graphSvg) return;
+      event.preventDefault();
+      const rect = visual.getBoundingClientRect();
+      const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+      zoomGraph(factor, event.clientX - rect.left, event.clientY - rect.top);
+    }, { passive: false });
+
+    visual.addEventListener("pointerdown", (event) => {
+      if (!graphSvg || event.button !== 0) return;
+      const state = currentGraphViewState();
+      dragState = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        panX: state.panX,
+        panY: state.panY
+      };
+      state.autoFit = false;
+      visual.classList.add("dragging");
+      visual.setPointerCapture(event.pointerId);
+    });
+
+    visual.addEventListener("pointermove", (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) return;
+      const state = currentGraphViewState();
+      state.panX = dragState.panX + event.clientX - dragState.x;
+      state.panY = dragState.panY + event.clientY - dragState.y;
+      applyGraphTransform();
+    });
+
+    visual.addEventListener("pointerup", stopGraphDrag);
+    visual.addEventListener("pointercancel", stopGraphDrag);
+
+    const graphResizeObserver = new ResizeObserver(() => {
+      const state = graphViewStates[activeGraphName];
+      if (!graphSvg || !state || !state.autoFit) return;
+      requestAnimationFrame(fitGraphToView);
+    });
+    graphResizeObserver.observe(visual);
+
+    function stopGraphDrag(event) {
+      if (!dragState || event.pointerId !== dragState.pointerId) return;
+      dragState = null;
+      visual.classList.remove("dragging");
+      if (visual.hasPointerCapture(event.pointerId)) {
+        visual.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    function mountGraph(name) {
+      activeGraphName = name || "";
+      const svgMarkup = graphSvgs[activeGraphName];
+      if (!svgMarkup) {
+        visual.innerHTML = '<div class="empty">No graph.</div>';
+        graphSvg = null;
+        graphSize = { width: 0, height: 0 };
+        disableGraphControls();
+        return;
+      }
+
+      visual.innerHTML = svgMarkup;
+      graphSvg = visual.querySelector("svg");
+      if (!graphSvg) {
+        disableGraphControls();
+        return;
+      }
+
+      const viewBox = graphSvg.viewBox.baseVal;
+      graphSize = {
+        width: viewBox && viewBox.width ? viewBox.width : Number(graphSvg.getAttribute("width") || 1),
+        height: viewBox && viewBox.height ? viewBox.height : Number(graphSvg.getAttribute("height") || 1)
+      };
+      graphSvg.style.width = `${graphSize.width}px`;
+      graphSvg.style.height = `${graphSize.height}px`;
+      graphViewStates[activeGraphName] ||= {
+        scale: 1,
+        panX: 0,
+        panY: 0,
+        autoFit: true
+      };
+      enableGraphControls();
+
+      requestAnimationFrame(() => {
+        const state = currentGraphViewState();
+        if (state.autoFit) {
+          fitGraphToView();
+        } else {
+          applyGraphTransform();
+        }
+      });
+    }
+
+    function currentGraphViewState() {
+      return graphViewStates[activeGraphName];
+    }
+
+    function zoomGraph(factor, centerX = visual.clientWidth / 2, centerY = visual.clientHeight / 2) {
+      if (!graphSvg) return;
+      const state = currentGraphViewState();
+      const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, state.scale * factor));
+      if (Math.abs(nextScale - state.scale) < 0.0001) return;
+      const graphX = (centerX - state.panX) / state.scale;
+      const graphY = (centerY - state.panY) / state.scale;
+      state.panX = centerX - graphX * nextScale;
+      state.panY = centerY - graphY * nextScale;
+      state.scale = nextScale;
+      state.autoFit = false;
+      applyGraphTransform();
+    }
+
+    function resetGraphZoom() {
+      if (!graphSvg) return;
+      const state = currentGraphViewState();
+      state.scale = 1;
+      state.panX = (visual.clientWidth - graphSize.width) / 2;
+      state.panY = (visual.clientHeight - graphSize.height) / 2;
+      state.autoFit = false;
+      applyGraphTransform();
+    }
+
+    function fitGraphToView() {
+      if (!graphSvg || !graphSize.width || !graphSize.height) return;
+      const state = currentGraphViewState();
+      const availableWidth = Math.max(1, visual.clientWidth - 32);
+      const availableHeight = Math.max(1, visual.clientHeight - 32);
+      state.scale = Math.min(
+        MAX_SCALE,
+        Math.max(MIN_SCALE, Math.min(availableWidth / graphSize.width, availableHeight / graphSize.height))
+      );
+      state.panX = (visual.clientWidth - graphSize.width * state.scale) / 2;
+      state.panY = (visual.clientHeight - graphSize.height * state.scale) / 2;
+      state.autoFit = true;
+      applyGraphTransform();
+    }
+
+    function applyGraphTransform() {
+      if (!graphSvg) return;
+      const state = currentGraphViewState();
+      graphSvg.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+      zoomLevel.value = `${Math.round(state.scale * 100)}%`;
+      zoomLevel.textContent = zoomLevel.value;
+    }
+
+    function enableGraphControls() {
+      zoomOut.disabled = false;
+      zoomIn.disabled = false;
+      resetZoom.disabled = false;
+      fitGraph.disabled = false;
+    }
+
+    function disableGraphControls() {
+      zoomOut.disabled = true;
+      zoomIn.disabled = true;
+      resetZoom.disabled = true;
+      fitGraph.disabled = true;
+      zoomLevel.value = "100%";
+      zoomLevel.textContent = "100%";
+    }
 
     function renderPaths(items) {
       paths.innerHTML = "";
@@ -675,7 +940,7 @@
       const selected = names.includes(entryGraph) ? entryGraph : names[0];
       graphLayer.value = selected;
       graphLayer.disabled = names.length < 2;
-      visual.innerHTML = svgs[selected] || '<div class="empty">No graph.</div>';
+      mountGraph(selected);
     }
   </script>
 </body>

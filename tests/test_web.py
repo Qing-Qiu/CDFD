@@ -124,6 +124,10 @@ def test_web_index_page():
 
     assert response.status_code == 200
     assert "CDFD Path Generator" in response.text
+    assert 'id="zoomIn"' in response.text
+    assert 'id="zoomOut"' in response.text
+    assert 'id="resetZoom"' in response.text
+    assert 'id="fitGraph"' in response.text
 
 
 def test_web_analyze_multilevel_project():
