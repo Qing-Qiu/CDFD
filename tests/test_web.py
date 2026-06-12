@@ -114,6 +114,20 @@ def test_web_analyze_rejects_json_that_does_not_match_project_schema():
     assert "schema_version" in response.json()["detail"]
 
 
+def test_web_analyze_rejects_removed_input_format():
+    from fastapi.testclient import TestClient
+
+    from cdfd.web import app
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/analyze",
+        json={"input_format": "yaml", "content": "graphs: {}"},
+    )
+
+    assert response.status_code == 422
+
+
 def test_web_index_page():
     from fastapi.testclient import TestClient
 
@@ -128,6 +142,20 @@ def test_web_index_page():
     assert 'id="zoomOut"' in response.text
     assert 'id="resetZoom"' in response.text
     assert 'id="fitGraph"' in response.text
+    assert "Paths" in response.text
+    assert "Path relations" in response.text
+    assert "View or edit CDFD source" in response.text
+    assert 'class="workspace"' in response.text
+    assert "CDFD JSON" in response.text
+    assert "SOFL .cdfd" in response.text
+    assert ">YAML<" not in response.text
+    assert ">CSV<" not in response.text
+    assert ">Results<" not in response.text
+    assert "Paths generated successfully." not in response.text
+    assert "Functional scenarios" not in response.text
+    assert "Cycle Strategy" not in response.text
+    assert "Start node" not in response.text
+    assert "End node(s)" not in response.text
 
 
 def test_web_analyze_multilevel_project():

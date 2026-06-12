@@ -130,6 +130,8 @@ def test_render_svg_contains_nodes_and_edges():
     assert "<svg" in svg
     assert "A" in svg
     assert "B" in svg
+    assert "#b45309" not in svg
+    assert "arrow-highlight" not in svg
 
 
 def test_render_svg_draws_control_edges_as_dashed():
@@ -154,8 +156,43 @@ def test_render_svg_draws_control_edges_as_dashed():
 
     svg = render_svg(graph)
 
-    assert "stroke-dasharray" in svg
+    assert 'class="control-flow"' in svg
+    assert 'stroke-dasharray="1 5"' in svg
     assert "s1 == 1" in svg
+
+
+def test_render_svg_uses_sofl_node_symbols():
+    graph = parse_cdfd(
+        """
+        {
+          "start": "A",
+          "ends": ["D"],
+          "nodes": [
+            {"id": "A", "type": "process"},
+            {"id": "STORE", "type": "data_store"},
+            {"id": "C", "type": "single_condition"},
+            {"id": "D", "type": "process"}
+          ],
+          "edges": [
+            {"id": "e1", "from": "A", "to": "STORE"},
+            {"id": "e2", "from": "STORE", "to": "C"},
+            {"id": "e3", "from": "C", "to": "D"}
+          ]
+        }
+        """,
+        "json",
+    )
+
+    svg = render_svg(graph)
+
+    assert 'data-node-shape="process"' in svg
+    assert 'data-node-shape="data-store"' in svg
+    assert 'data-node-shape="condition"' in svg
+    assert 'id="sofl-grid"' in svg
+    assert "<polygon" in svg
+    assert svg.count('class="sofl-process-band"') == 4
+    assert svg.count('class="sofl-process-port-rail"') == 4
+    assert '<rect class="sofl-process-boundary"' in svg
 
 
 def test_render_svg_places_control_state_near_target():
@@ -200,6 +237,9 @@ def test_render_svg_uses_sofl_saved_component_layout():
     assert user_login == (375, 264)
     assert course_db == (710, 60)
     assert 'M477,180 L465,265' in svg
+    assert 'class="control-flow" data-edge-id="control_data_flow_1" d="M232,296 L375,294"' in svg
+    assert 'class="control-flow" data-edge-id="control_data_flow_2" d="M235,340 L375,336"' in svg
+    assert "#b45309" not in svg
 
 
 def _rect_position(svg: str, node_id: str) -> tuple[int, int]:

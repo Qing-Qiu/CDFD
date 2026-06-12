@@ -7,7 +7,6 @@ import re
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from io import StringIO
-from typing import Iterable
 
 from cdfd.models import CDFDGraph, CDFDProject, FunctionalScenario, PathRelation, PathResult, model_dump
 
@@ -137,19 +136,20 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         )
         + TOP_PAD
     )
-    highlighted_edges = _highlighted_edges(paths[0].edges if paths else [], graph_name)
     edge_offsets = _edge_offsets(graph)
 
     parts = [
         f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="CDFD graph" xmlns="http://www.w3.org/2000/svg">',
         "<defs>",
-        '<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">',
-        '<path d="M0,0 L0,6 L9,3 z" fill="#4b5563" />',
-        "</marker>",
-        '<marker id="arrow-highlight" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">',
-        '<path d="M0,0 L0,6 L9,3 z" fill="#b45309" />',
+        '<pattern id="sofl-grid" width="10" height="10" patternUnits="userSpaceOnUse">',
+        '<circle cx="1" cy="1" r="0.65" fill="#c7cdd3" />',
+        "</pattern>",
+        '<marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">',
+        '<path d="M0,0 L0,6 L8,3 z" fill="#111827" />',
         "</marker>",
         "</defs>",
+        f'<rect width="{width}" height="{height}" fill="#ffffff" />',
+        f'<rect width="{width}" height="{height}" fill="url(#sofl-grid)" />',
     ]
 
     for edge_index, edge in enumerate(graph.edges, start=1):
@@ -157,45 +157,213 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
             continue
         x1, y1, x2, y2 = _edge_endpoints(edge, layout, edge_offsets.get(edge.id, 0))
         label = _edge_label(edge)
-        color = "#b45309" if edge.id in highlighted_edges else "#4b5563"
-        marker = "arrow-highlight" if edge.id in highlighted_edges else "arrow"
-        stroke_width = "3" if edge.id in highlighted_edges else "2"
-        dash = ' stroke-dasharray="6 5"' if edge.kind == "control" else ""
+        edge_class = "control-flow" if edge.kind == "control" else "data-flow"
+        dash = ' stroke-dasharray="1 5" stroke-linecap="round"' if edge.kind == "control" else ""
         if layout.source_layout:
-            path_d = _source_layout_path(edge, x1, y1, x2, y2, edge_index)
+            path_d = _source_layout_path(x1, y1, x2, y2)
         elif edge.kind == "control":
             path_d = _control_edge_path(x1, y1, x2, y2, edge_index)
         else:
             path_d = _data_edge_path(x1, y1, x2, y2, edge_offsets.get(edge.id, 0))
         parts.append(
-            f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{stroke_width}"{dash} marker-end="url(#{marker})" />'
+            f'<path class="{edge_class}" data-edge-id="{html.escape(edge.id)}" d="{path_d}" '
+            f'fill="none" stroke="#111827" stroke-width="1.35"{dash} marker-end="url(#arrow)" />'
         )
         if label:
             lx, ly = _edge_label_position(path_d, x1, y1, x2, y2)
             escaped_label = html.escape(label)
-            label_width = max(28, min(180, len(label) * 8 + 16))
             parts.append(
-                f'<rect x="{lx - label_width / 2:.1f}" y="{ly - 15:.1f}" width="{label_width}" height="18" rx="3" fill="#ffffff" opacity="0.9" />'
+                f'<text x="{lx}" y="{ly}" text-anchor="middle" font-size="12" '
+                'font-family="Arial, sans-serif" fill="#111827" '
+                'style="paint-order:stroke;stroke:#ffffff;stroke-width:4px;stroke-linejoin:round">'
+                f"{escaped_label}</text>"
             )
-            parts.append(f'<text x="{lx}" y="{ly}" text-anchor="middle" font-size="12" fill="#374151">{escaped_label}</text>')
 
     for node_id, node in graph.nodes.items():
         x, y = positions[node_id]
         width, height = sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))
-        fill = _node_fill(graph, node_id, node.type)
-        label = node.label or node.id
-        font_size = 12 if height < 42 else 14
-        text_y = y + height / 2 + font_size / 3
-        radius = 5 if node.type == "data_store" else 8
-        parts.append(
-            f'<rect data-node-id="{html.escape(node_id)}" x="{x}" y="{y}" width="{width}" height="{height}" rx="{radius}" fill="{fill}" stroke="#2f6f73" stroke-width="1.5" />'
-        )
-        parts.append(
-            f'<text x="{x + width / 2}" y="{text_y}" text-anchor="middle" font-size="{font_size}" font-family="Arial, sans-serif" fill="#111827">{html.escape(label)}</text>'
-        )
+        parts.extend(_render_sofl_node(graph, node_id, node, x, y, width, height))
 
     parts.append("</svg>")
     return "".join(parts)
+
+
+def _render_sofl_node(graph: CDFDGraph, node_id: str, node, x: int, y: int, width: int, height: int) -> list[str]:
+    node_type = node.type.lower()
+    escaped_id = html.escape(node_id)
+    label = html.escape(node.label or node.id)
+    common = f'data-node-id="{escaped_id}"'
+    type_attr = f'data-node-type="{html.escape(node_type)}"'
+    stroke = "#111827"
+    fill = "#ffffff"
+    text = _svg_text(x + width / 2, y + height / 2, label, width, height)
+
+    if node_type == "process":
+        inset = max(7, min(10, int(min(width, height) * 0.16)))
+        top = y + inset
+        bottom = y + height - inset
+        left = x + inset
+        right = x + width - inset
+        return [
+            f'<g class="sofl-node sofl-process" data-node-shape="process">',
+            f'<rect class="sofl-process-boundary" {common} x="{x}" y="{y}" width="{width}" height="{height}" {type_attr} '
+            f'fill="{fill}" stroke="{stroke}" />',
+            f'<line class="sofl-process-band" x1="{x}" y1="{top}" x2="{x + width}" y2="{top}" stroke="{stroke}" />',
+            f'<line class="sofl-process-band" x1="{x}" y1="{bottom}" x2="{x + width}" y2="{bottom}" stroke="{stroke}" />',
+            f'<line class="sofl-process-port-rail" x1="{left}" y1="{top}" x2="{left}" y2="{bottom}" stroke="{stroke}" />',
+            f'<line class="sofl-process-port-rail" x1="{right}" y1="{top}" x2="{right}" y2="{bottom}" stroke="{stroke}" />',
+            text,
+            "</g>",
+        ]
+
+    if node_type in {"data", "data_store"}:
+        divider = max(18, min(30, int(width * 0.2)))
+        number = _sofl_data_store_number(node)
+        label_x = x + divider + (width - divider) / 2
+        return [
+            f'<g class="sofl-node sofl-data-store" data-node-shape="data-store">',
+            f'<rect {common} x="{x}" y="{y}" width="{width}" height="{height}" {type_attr} '
+            f'fill="{fill}" stroke="{stroke}" />',
+            f'<line x1="{x + divider}" y1="{y}" x2="{x + divider}" y2="{y + height}" stroke="{stroke}" />',
+            _svg_text(x + divider / 2, y + height / 2, html.escape(number), divider, height, preferred_size=11),
+            _svg_text(label_x, y + height / 2, label, width - divider, height, preferred_size=12),
+            "</g>",
+        ]
+
+    if node_type in {"decision", "single_condition", "multiple_condition", "binary_condition"}:
+        points = f"{x + width / 2},{y} {x + width},{y + height / 2} {x + width / 2},{y + height} {x},{y + height / 2}"
+        parts = [
+            f'<g class="sofl-node sofl-condition" data-node-shape="condition">',
+            f'<polygon {common} {type_attr} points="{points}" fill="{fill}" stroke="{stroke}" />',
+            text,
+        ]
+        if node_type == "binary_condition":
+            parts.append(f'<circle cx="{x + width / 2}" cy="{y + height}" r="4.5" fill="{stroke}" />')
+        parts.append("</g>")
+        return parts
+
+    if node_type == "broadcasting":
+        return [
+            f'<g class="sofl-node sofl-broadcasting" data-node-shape="broadcasting">',
+            f'<ellipse {common} {type_attr} cx="{x + width / 2}" cy="{y + height / 2}" rx="{width / 2}" ry="{height / 2}" '
+            f'fill="{fill}" stroke="{stroke}" />',
+            f'<circle cx="{x + width / 2}" cy="{y + height / 2}" r="4.5" fill="{stroke}" />',
+            "</g>",
+        ]
+
+    if node_type in {"separating", "merging"}:
+        neck = int(width * 0.68)
+        flare = int(height * 0.2)
+        if node_type == "separating":
+            points = (
+                f"{x},{y + flare} {x + neck},{y + flare} {x + width},{y} "
+                f"{x + width},{y + height} {x + neck},{y + height - flare} {x},{y + height - flare}"
+            )
+        else:
+            points = (
+                f"{x},{y} {x + width - neck},{y + flare} {x + width},{y + flare} "
+                f"{x + width},{y + height - flare} {x + width - neck},{y + height - flare} {x},{y + height}"
+            )
+        return [
+            f'<g class="sofl-node sofl-{node_type}" data-node-shape="{node_type}">',
+            f'<polygon {common} {type_attr} points="{points}" fill="{fill}" stroke="{stroke}" />',
+            "</g>",
+        ]
+
+    if node_type == "connecting":
+        return [
+            f'<g class="sofl-node sofl-connecting" data-node-shape="connecting">',
+            f'<ellipse {common} {type_attr} cx="{x + width / 2}" cy="{y + height / 2}" rx="{width / 2}" ry="{height / 2}" '
+            f'fill="{fill}" stroke="{stroke}" />',
+            text,
+            "</g>",
+        ]
+
+    if node_type == "nondeterministic":
+        return [
+            f'<g class="sofl-node sofl-nondeterministic" data-node-shape="nondeterministic">',
+            f'<ellipse {common} {type_attr} cx="{x + width / 2}" cy="{y + height / 2}" rx="{width / 2}" ry="{height / 2}" '
+            f'fill="{fill}" stroke="{stroke}" />',
+            f'<line x1="{x}" y1="{y + height / 2}" x2="{x + width}" y2="{y + height / 2}" stroke="{stroke}" />',
+            f'<line x1="{x + width / 2}" y1="{y}" x2="{x + width / 2}" y2="{y + height}" stroke="{stroke}" />',
+            "</g>",
+        ]
+
+    if node_type == "renaming":
+        row_height = height / 3
+        return [
+            f'<g class="sofl-node sofl-renaming" data-node-shape="renaming">',
+            f'<rect {common} x="{x}" y="{y}" width="{width}" height="{height}" {type_attr} '
+            f'fill="{fill}" stroke="{stroke}" />',
+            f'<line x1="{x}" y1="{y + row_height:.1f}" x2="{x + width}" y2="{y + row_height:.1f}" stroke="{stroke}" />',
+            f'<line x1="{x}" y1="{y + row_height * 2:.1f}" x2="{x + width}" y2="{y + row_height * 2:.1f}" stroke="{stroke}" />',
+            "</g>",
+        ]
+
+    if node_type == "state":
+        left_text, right_text = _split_state_label(node.label or node.id)
+        divider = max(22, min(38, int(width * 0.28)))
+        return [
+            f'<g class="sofl-node sofl-state" data-node-shape="state">',
+            f'<rect {common} x="{x}" y="{y}" width="{width}" height="{height}" {type_attr} '
+            f'fill="#fff7fb" stroke="{stroke}" />',
+            f'<line x1="{x + divider}" y1="{y}" x2="{x + divider}" y2="{y + height}" stroke="{stroke}" />',
+            _svg_text(x + divider / 2, y + height / 2, html.escape(left_text), divider, height, preferred_size=11),
+            _svg_text(
+                x + divider + (width - divider) / 2,
+                y + height / 2,
+                html.escape(right_text),
+                width - divider,
+                height,
+                preferred_size=12,
+            ),
+            "</g>",
+        ]
+
+    fill = _node_fill(graph, node_id, node_type)
+    return [
+        f'<g class="sofl-node sofl-generic" data-node-shape="generic">',
+        f'<rect {common} x="{x}" y="{y}" width="{width}" height="{height}" {type_attr} '
+        f'fill="{fill}" stroke="{stroke}" />',
+        text,
+        "</g>",
+    ]
+
+
+def _svg_text(
+    center_x: float,
+    center_y: float,
+    escaped_label: str,
+    width: float,
+    height: float,
+    *,
+    preferred_size: int = 13,
+) -> str:
+    available_chars = max(1, int((width - 12) / max(preferred_size * 0.58, 1)))
+    font_size = preferred_size
+    if len(html.unescape(escaped_label)) > available_chars:
+        font_size = max(9, int(preferred_size * available_chars / len(html.unescape(escaped_label))))
+    text_y = center_y + font_size * 0.34
+    return (
+        f'<text x="{center_x:.1f}" y="{text_y:.1f}" text-anchor="middle" font-size="{font_size}" '
+        f'font-family="Arial, sans-serif" fill="#111827">{escaped_label}</text>'
+    )
+
+
+def _sofl_data_store_number(node) -> str:
+    attributes = node.metadata.get("attributes", {})
+    if isinstance(attributes, dict):
+        number = attributes.get("no")
+        if number is not None:
+            return str(number)
+    return ""
+
+
+def _split_state_label(label: str) -> tuple[str, str]:
+    parts = label.strip().split(maxsplit=1)
+    if len(parts) == 2 and parts[0].replace(".", "", 1).isdigit():
+        return parts[0], parts[1]
+    return "", label
 
 
 def _export_text(paths: list[PathResult]) -> str:
@@ -586,9 +754,7 @@ def _raw_edge_points(edge) -> tuple[int, int, int, int] | None:
     return int(from_x), int(from_y), int(to_x), int(to_y)
 
 
-def _source_layout_path(edge, x1: int, y1: int, x2: int, y2: int, edge_index: int) -> str:
-    if edge.kind == "control":
-        return _control_edge_path(x1, y1, x2, y2, edge_index)
+def _source_layout_path(x1: int, y1: int, x2: int, y2: int) -> str:
     return f"M{x1},{y1} L{x2},{y2}"
 
 
@@ -656,14 +822,3 @@ def _path_route(path: PathResult) -> str:
             route += f" --[{data}]--> {path.nodes[index]}"
         return route
     return " -> ".join(path.nodes)
-
-
-def _highlighted_edges(edge_ids: Iterable[str], graph_name: str | None) -> set[str]:
-    highlighted: set[str] = set()
-    prefix = f"{graph_name}:" if graph_name else None
-    for edge_id in edge_ids:
-        if prefix and edge_id.startswith(prefix):
-            highlighted.add(edge_id[len(prefix) :])
-        elif ":" not in edge_id:
-            highlighted.add(edge_id)
-    return highlighted

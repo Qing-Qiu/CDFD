@@ -35,7 +35,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      padding: 18px 24px;
+      padding: 13px 20px;
       border-bottom: 1px solid var(--line);
       background: #ffffff;
     }
@@ -49,9 +49,8 @@
 
     main {
       display: grid;
-      grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
-      gap: 18px;
-      padding: 18px;
+      gap: 12px;
+      padding: 12px;
     }
 
     section {
@@ -61,14 +60,27 @@
       border-radius: 8px;
     }
 
-    .panel-heading {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-      font-weight: 700;
-    }
-
     .panel-body {
       padding: 16px;
+    }
+
+    .input-panel .panel-body {
+      padding: 12px;
+    }
+
+    .input-actions {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) 150px 170px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .input-actions .field {
+      margin: 0;
+    }
+
+    .input-actions button {
+      min-height: 41px;
     }
 
     .field {
@@ -102,7 +114,7 @@
     }
 
     textarea {
-      min-height: 310px;
+      min-height: 360px;
       resize: vertical;
       font-family: Consolas, Monaco, monospace;
       font-size: 13px;
@@ -126,60 +138,39 @@
       background: var(--accent-dark);
     }
 
-    .grid-two {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+    button:disabled {
+      cursor: default;
+      opacity: 0.65;
     }
 
-    .summary {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-
-    .metric {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
-      background: #fbfcfd;
-    }
-
-    .metric span {
-      display: block;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .metric strong {
-      display: block;
-      margin-top: 4px;
-      font-size: 24px;
+    .workspace {
+      border: 0;
+      background: transparent;
     }
 
     .result-grid {
       display: grid;
-      grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
-      gap: 14px;
-      align-items: start;
+      grid-template-columns: minmax(300px, 0.72fr) minmax(560px, 1.6fr);
+      gap: 12px;
+      align-items: stretch;
     }
 
     .path-list {
-      max-height: 510px;
       overflow: auto;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 8px;
+      border-radius: 6px;
+      padding: 6px 10px;
       margin: 0;
-      list-style-position: inside;
+      list-style: none;
+      background: #ffffff;
     }
 
     .path-list li {
-      padding: 9px 8px;
+      padding: 11px 4px;
       border-bottom: 1px solid var(--line);
       font-family: Consolas, Monaco, monospace;
       font-size: 13px;
+      line-height: 1.45;
       overflow-wrap: anywhere;
     }
 
@@ -189,26 +180,55 @@
 
     .path-column {
       display: grid;
+      grid-template-rows: minmax(260px, 1fr) auto auto;
       gap: 12px;
+      min-height: calc(100vh - 166px);
+    }
+
+    .path-section {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
     }
 
     .list-title {
-      margin-bottom: 6px;
-      color: var(--muted);
-      font-size: 13px;
+      margin: 0 0 7px;
+      color: var(--ink);
+      font-size: 14px;
       font-weight: 700;
+    }
+
+    .count {
+      margin-left: 5px;
+      color: var(--muted);
+      font-weight: 600;
     }
 
     .group-list {
       max-height: 240px;
     }
 
+    .path-detail {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      font-size: 12px;
+    }
+
+    .graph-panel {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-width: 0;
+      min-height: calc(100vh - 166px);
+    }
+
     .visual {
       position: relative;
-      min-height: 460px;
+      min-height: 620px;
       overflow: hidden;
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 6px;
       background: #ffffff;
       cursor: grab;
       touch-action: none;
@@ -233,13 +253,29 @@
       display: flex;
       justify-content: space-between;
       gap: 10px;
-      margin-bottom: 10px;
-      align-items: end;
+      margin-bottom: 7px;
+      align-items: center;
     }
 
     .visual-head .field {
-      width: min(220px, 100%);
+      width: min(190px, 100%);
       margin-bottom: 0;
+    }
+
+    .visual-head select {
+      padding: 7px 9px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     .graph-tools {
@@ -289,12 +325,16 @@
     }
 
     .message {
-      margin-bottom: 14px;
-      border-radius: 8px;
-      padding: 11px 12px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      padding: 9px 11px;
       color: #102a43;
       background: #edf7f7;
       border: 1px solid #b8dedc;
+    }
+
+    .message[hidden] {
+      display: none;
     }
 
     .message.error {
@@ -309,19 +349,27 @@
       border-color: #fed7aa;
     }
 
-    .check-field {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      margin-bottom: 14px;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 600;
+    .source-editor {
+      margin-top: 10px;
+      border-top: 1px solid var(--line);
     }
 
-    .check-field input {
-      width: 18px;
-      height: 18px;
+    .source-editor summary {
+      width: max-content;
+      padding: 9px 0 0;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .source-editor .field {
+      margin: 0;
+      padding-top: 10px;
+    }
+
+    .warning-panel {
+      margin-top: 12px;
     }
 
     .empty {
@@ -331,10 +379,43 @@
     }
 
     @media (max-width: 980px) {
-      main,
-      .result-grid,
-      .summary {
+      .result-grid {
         grid-template-columns: 1fr;
+      }
+
+      .input-actions {
+        grid-template-columns: 1fr 150px;
+      }
+
+      .input-actions button {
+        grid-column: 1 / -1;
+      }
+
+      .path-column,
+      .graph-panel {
+        min-height: 0;
+      }
+
+      .path-section {
+        min-height: 320px;
+      }
+
+      .visual-head {
+        align-items: stretch;
+      }
+
+      .visual {
+        min-height: 520px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .input-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .input-actions button {
+        grid-column: auto;
       }
 
       .visual-head {
@@ -358,63 +439,28 @@
   </header>
 
   <main>
-    <section>
-      <div class="panel-heading">Input</div>
+    <section class="input-panel">
       <div class="panel-body">
-        <div class="field">
-          <label for="fileInput">CDFD file</label>
-          <input id="fileInput" type="file" accept=".json,.yaml,.yml,.csv,.cdfd,application/json,text/xml">
-        </div>
-
-        <div class="grid-two">
+        <div class="input-actions">
           <div class="field">
-            <label for="inputFormat">Input Format</label>
+            <label for="fileInput">CDFD file</label>
+            <input id="fileInput" type="file" accept=".json,.cdfd,application/json,text/xml">
+          </div>
+          <div class="field">
+            <label for="inputFormat">Format</label>
             <select id="inputFormat">
-              <option value="json">JSON</option>
+              <option value="json">CDFD JSON</option>
               <option value="cdfd">SOFL .cdfd</option>
-              <option value="yaml">YAML</option>
-              <option value="csv">CSV</option>
             </select>
           </div>
-          <div class="field">
-            <label for="strategy">Cycle Strategy</label>
-            <select id="strategy">
-              <option value="simple">Simple paths</option>
-              <option value="max-depth">Max depth</option>
-            </select>
-          </div>
+          <button id="runButton" type="button">Generate Paths</button>
         </div>
 
-        <div class="grid-two">
+        <details class="source-editor">
+          <summary>View or edit CDFD source</summary>
           <div class="field">
-            <label for="start">Start node</label>
-            <input id="start" placeholder="Auto-detect">
-          </div>
-          <div class="field">
-            <label for="ends">End node(s)</label>
-            <input id="ends" placeholder="Auto-detect or D,E">
-          </div>
-        </div>
-
-        <div class="grid-two">
-          <div class="field">
-            <label for="maxDepth">Max depth</label>
-            <input id="maxDepth" type="number" min="1" value="20">
-          </div>
-          <div class="field">
-            <label for="maxPaths">Max paths</label>
-            <input id="maxPaths" type="number" min="1" value="10000">
-          </div>
-        </div>
-
-        <label class="check-field" for="expandProcesses">
-          <input id="expandProcesses" type="checkbox" checked>
-          Expand decomposed processes
-        </label>
-
-        <div class="field">
-          <label for="content">CDFD content</label>
-          <textarea id="content" spellcheck="false">{
+            <label for="content">CDFD source</label>
+            <textarea id="content" spellcheck="false">{
   "schema_version": "cdfd-json-v1",
   "module": {
     "name": "ParallelExample",
@@ -465,53 +511,36 @@
     }
   }
 }</textarea>
-        </div>
-
-        <button id="runButton" type="button">Generate Paths</button>
+          </div>
+        </details>
       </div>
     </section>
 
-    <section>
-      <div class="panel-heading">Results</div>
-      <div class="panel-body">
-        <div id="message" class="message">Ready.</div>
-        <div class="summary">
-          <div class="metric"><span>Graphs</span><strong id="graphCount">0</strong></div>
-          <div class="metric"><span>Nodes</span><strong id="nodeCount">0</strong></div>
-          <div class="metric"><span>Edges</span><strong id="edgeCount">0</strong></div>
-          <div class="metric"><span>Paths</span><strong id="pathCount">0</strong></div>
-        </div>
-        <div class="result-grid">
+    <section class="workspace">
+      <div id="message" class="message" hidden></div>
+      <div class="result-grid">
           <div class="path-column">
-            <div>
-              <div class="list-title">Linear paths</div>
-              <ol id="paths" class="path-list">
+            <div class="path-section">
+              <h2 class="list-title">Paths <span id="pathCount" class="count">0</span></h2>
+              <ul id="paths" class="path-list">
                 <li class="empty">Run the generator to see paths.</li>
-              </ol>
+              </ul>
             </div>
             <div>
-              <div class="list-title">Path relations</div>
-              <ol id="pathRelations" class="path-list group-list">
+              <h2 class="list-title">Path relations</h2>
+              <ul id="pathRelations" class="path-list group-list">
                 <li class="empty">Run the generator to see relations.</li>
-              </ol>
+              </ul>
             </div>
-            <div>
-              <div class="list-title">Functional scenarios</div>
-              <ol id="functionalScenarios" class="path-list group-list">
-                <li class="empty">Run the generator to see scenarios.</li>
-              </ol>
-            </div>
-            <div>
-              <div class="list-title">CDFD consistency</div>
-              <ol id="consistencyIssues" class="path-list group-list">
-                <li class="empty">Run the generator to see consistency checks.</li>
-              </ol>
+            <div id="consistencyPanel" class="warning-panel" hidden>
+              <h2 class="list-title">Input warnings</h2>
+              <ul id="consistencyIssues" class="path-list group-list"></ul>
             </div>
           </div>
-          <div>
+          <div class="graph-panel">
             <div class="visual-head">
-              <div class="field">
-                <label for="graphLayer">Graph layer</label>
+              <div id="graphLayerField" class="field" hidden>
+                <label class="visually-hidden" for="graphLayer">Graph layer</label>
                 <select id="graphLayer" disabled>
                   <option value="">-</option>
                 </select>
@@ -528,7 +557,6 @@
               <div class="empty">Graph visualization will appear here.</div>
             </div>
           </div>
-        </div>
       </div>
     </section>
   </main>
@@ -541,13 +569,11 @@
     const inputFormat = document.getElementById("inputFormat");
     const paths = document.getElementById("paths");
     const pathRelations = document.getElementById("pathRelations");
-    const functionalScenarios = document.getElementById("functionalScenarios");
+    const consistencyPanel = document.getElementById("consistencyPanel");
     const consistencyIssues = document.getElementById("consistencyIssues");
     const visual = document.getElementById("visual");
-    const nodeCount = document.getElementById("nodeCount");
-    const edgeCount = document.getElementById("edgeCount");
-    const graphCount = document.getElementById("graphCount");
     const pathCount = document.getElementById("pathCount");
+    const graphLayerField = document.getElementById("graphLayerField");
     const graphLayer = document.getElementById("graphLayer");
     const zoomOut = document.getElementById("zoomOut");
     const zoomIn = document.getElementById("zoomIn");
@@ -568,29 +594,26 @@
       if (!file) return;
       content.value = await file.text();
       const suffix = file.name.split(".").pop().toLowerCase();
-      if (["json", "yaml", "yml", "csv", "cdfd"].includes(suffix)) {
-        inputFormat.value = suffix === "yml" ? "yaml" : suffix;
+      if (["json", "cdfd"].includes(suffix)) {
+        inputFormat.value = suffix;
       }
     });
 
     runButton.addEventListener("click", async () => {
-      setMessage("Generating paths.", "");
+      setMessage("", "");
+      runButton.disabled = true;
+      runButton.textContent = "Generating...";
       paths.innerHTML = "";
       pathRelations.innerHTML = "";
-      functionalScenarios.innerHTML = "";
       consistencyIssues.innerHTML = "";
+      consistencyPanel.hidden = true;
       visual.innerHTML = '<div class="empty">Working...</div>';
       disableGraphControls();
 
       const payload = {
         content: content.value,
         input_format: inputFormat.value,
-        start: document.getElementById("start").value || null,
-        ends: document.getElementById("ends").value || null,
-        strategy: document.getElementById("strategy").value,
-        max_depth: Number(document.getElementById("maxDepth").value || 20),
-        max_paths: Number(document.getElementById("maxPaths").value || 10000),
-        expand: document.getElementById("expandProcesses").checked
+        expand: true
       };
 
       try {
@@ -612,13 +635,9 @@
           total_edges: data.graph ? data.graph.edges.length : 0,
           graphs: data.graph ? { main: data.graph } : {}
         };
-        graphCount.textContent = project.graph_count;
-        nodeCount.textContent = project.total_nodes;
-        edgeCount.textContent = project.total_edges;
         pathCount.textContent = data.paths.length;
         renderPaths(data.paths);
         renderPathRelations(data.path_relations || []);
-        renderFunctionalScenarios(data.functional_scenarios || []);
         renderConsistencyIssues(data.consistency_issues || []);
         graphSvgs = data.graph_svgs || { [project.entry_graph || "main"]: data.svg };
         graphViewStates = {};
@@ -627,30 +646,31 @@
         const cycleCount = Object.values(data.cycles).reduce((total, graphCycles) => total + graphCycles.length, 0);
         const consistencyCount = (data.consistency_issues || []).length;
         if (cycleCount) {
-          setMessage(`${cycleCount} cycle(s) detected. Strategy handled them successfully.`, "warn");
+          setMessage(`${cycleCount} cycle(s) detected and handled.`, "warn");
         } else if (consistencyCount) {
           setMessage(`${consistencyCount} CDFD consistency warning(s) detected.`, "warn");
         } else {
-          setMessage("Paths generated successfully.", "");
+          setMessage("", "");
         }
       } catch (error) {
-        nodeCount.textContent = "0";
-        edgeCount.textContent = "0";
-        graphCount.textContent = "0";
         pathCount.textContent = "0";
         paths.innerHTML = '<li class="empty">No paths.</li>';
         pathRelations.innerHTML = '<li class="empty">No relations.</li>';
-        functionalScenarios.innerHTML = '<li class="empty">No scenarios.</li>';
-        consistencyIssues.innerHTML = '<li class="empty">No consistency checks.</li>';
+        consistencyIssues.innerHTML = "";
+        consistencyPanel.hidden = true;
         visual.innerHTML = '<div class="empty">No graph.</div>';
         graphLayer.innerHTML = '<option value="">-</option>';
         graphLayer.disabled = true;
+        graphLayerField.hidden = true;
         graphSvgs = {};
         graphViewStates = {};
         activeGraphName = "";
         graphSvg = null;
         disableGraphControls();
         setMessage(error.message, "error");
+      } finally {
+        runButton.disabled = false;
+        runButton.textContent = "Generate Paths";
       }
     });
 
@@ -831,17 +851,15 @@
       }
       for (const item of items) {
         const li = document.createElement("li");
-        const label = item.id ? `${item.id}: ` : "";
-        const endpoints = item.source && item.sink ? ` | ${item.source} -> ${item.sink}` : "";
-        li.textContent = `${label}${formatRoute(item)}${endpoints}`;
-        if (item.data.length) {
-          li.textContent += ` | data: ${item.data.join(", ")}`;
-        }
-        if (item.preconditions.length) {
-          li.textContent += ` | pre: ${item.preconditions.join("; ")}`;
-        }
-        if (item.conditions.length) {
-          li.textContent += ` | conditions: ${item.conditions.join(", ")}`;
+        const route = document.createElement("strong");
+        route.textContent = `${item.id ? `${item.id}  ` : ""}${formatRoute(item)}`;
+        li.appendChild(route);
+        const constraints = item.conditions.length ? item.conditions : item.preconditions;
+        if (constraints.length) {
+          const detail = document.createElement("span");
+          detail.className = "path-detail";
+          detail.textContent = `Conditions: ${constraints.join(", ")}`;
+          li.appendChild(detail);
         }
         paths.appendChild(li);
       }
@@ -857,13 +875,20 @@
         const li = document.createElement("li");
         const label = item.title || item.kind;
         const connector = relationConnector(item.kind);
-        li.textContent = `${item.id}: ${item.path_ids.join(connector)} | ${label}`;
+        const relation = document.createElement("strong");
+        relation.textContent = `${item.id}  ${item.path_ids.join(connector)}`;
+        li.appendChild(relation);
+        const details = [label];
         if (item.outputs.length) {
-          li.textContent += ` | outputs: ${item.outputs.join(", ")}`;
+          details.push(`Outputs: ${item.outputs.join(", ")}`);
         }
         if (item.shared_prefix.length) {
-          li.textContent += ` | shared: ${item.shared_prefix.join(" -> ")}`;
+          details.push(`Shared: ${item.shared_prefix.join(" -> ")}`);
         }
+        const detail = document.createElement("span");
+        detail.className = "path-detail";
+        detail.textContent = details.join(" · ");
+        li.appendChild(detail);
         pathRelations.appendChild(li);
       }
     }
@@ -878,30 +903,13 @@
       return " + ";
     }
 
-    function renderFunctionalScenarios(items) {
-      functionalScenarios.innerHTML = "";
-      if (!items.length) {
-        functionalScenarios.innerHTML = '<li class="empty">No functional scenarios.</li>';
-        return;
-      }
-      for (const item of items) {
-        const li = document.createElement("li");
-        const inputs = item.input_data.length ? item.input_data.join(", ") : "-";
-        const outputs = item.output_data.length ? item.output_data.join(", ") : "-";
-        const operations = item.operations.length
-          ? item.operations.map((operation) => operation.process).join(" -> ")
-          : "-";
-        li.textContent = `${item.id}: ${item.path_ids.join(", ")} | ${inputs} => ${outputs} | ops: ${operations}`;
-        functionalScenarios.appendChild(li);
-      }
-    }
-
     function renderConsistencyIssues(items) {
       consistencyIssues.innerHTML = "";
       if (!items.length) {
-        consistencyIssues.innerHTML = '<li class="empty">No consistency warnings.</li>';
+        consistencyPanel.hidden = true;
         return;
       }
+      consistencyPanel.hidden = false;
       for (const item of items) {
         const li = document.createElement("li");
         li.textContent = `${item.id}: ${item.message}`;
@@ -912,6 +920,7 @@
     function setMessage(text, type) {
       message.textContent = text;
       message.className = type ? `message ${type}` : "message";
+      message.hidden = !text;
     }
 
     function formatRoute(item) {
@@ -940,6 +949,7 @@
       const selected = names.includes(entryGraph) ? entryGraph : names[0];
       graphLayer.value = selected;
       graphLayer.disabled = names.length < 2;
+      graphLayerField.hidden = names.length < 2;
       mountGraph(selected);
     }
   </script>

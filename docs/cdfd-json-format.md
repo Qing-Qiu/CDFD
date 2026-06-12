@@ -4,6 +4,8 @@ This project uses JSON as its canonical CDFD project format. A valid file descri
 
 The parser can also import SOFL tool `.cdfd` XML files. Those files are converted into the same internal graph/project model before path generation. JSON remains the documented exchange format because it can carry the complete module/process/decomposition data in one file.
 
+These are the only supported input formats. YAML and CSV are intentionally not accepted: YAML duplicates the JSON contract, while a CSV edge list cannot represent complete multi-level CDFD semantics such as modules, process decomposition, control conditions, and explicit parallel/choice/join structures.
+
 The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json). JSON project input is validated against this schema before path generation. See [cdfd-research-notes.md](cdfd-research-notes.md) for the SOFL/CDFD references that guide this format.
 
 ## Path Definition

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -26,7 +27,7 @@ from cdfd.scenarios import build_functional_scenarios
 
 class AnalyzeRequest(BaseModel):
     content: str
-    input_format: str = "json"
+    input_format: Literal["json", "cdfd"] = "json"
     start: str | None = None
     ends: str | list[str] | None = None
     strategy: str = "simple"

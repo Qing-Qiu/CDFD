@@ -26,6 +26,8 @@ References:
 
    The desktop SOFL tool's `.cdfd` XML is supported as an import format. It stores a single CDFD drawing as `componentList` plus `connectionList`; the importer maps that drawing into the JSON-equivalent internal model and keeps SOFL-specific layout/type metadata.
 
+   YAML and CSV are not supported as CDFD inputs. YAML adds a second syntax for the same contract, and CSV cannot preserve the complete hierarchy and structure semantics required by this project.
+
 2. Treat paths as atomic data-flow traces.
    A path is a source-to-sink trace through CDFD data-flow edges. Control/state edges are kept as conditions on the target process, not as path segments. Parallel, choice, and join semantics are represented separately as `path_relations`.
 

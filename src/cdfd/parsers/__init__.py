@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import csv
 import json
 from functools import lru_cache
-from io import StringIO
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-import yaml
 from jsonschema import Draft202012Validator, ValidationError
 
 from cdfd.models import (
@@ -25,13 +22,13 @@ from cdfd.parsers.errors import ParseError
 from cdfd.parsers.sofl_xml import parse_sofl_cdfd_graph, parse_sofl_cdfd_project
 
 
-SUPPORTED_FORMATS = {"json", "yaml", "yml", "csv", "cdfd"}
+SUPPORTED_FORMATS = {"json", "cdfd"}
 
 
 def infer_format(path: str | Path) -> str:
     suffix = Path(path).suffix.lower().lstrip(".")
     if suffix in SUPPORTED_FORMATS:
-        return "yaml" if suffix == "yml" else suffix
+        return suffix
     raise ParseError(f"Cannot infer input format from extension '.{suffix}'.")
 
 
@@ -43,8 +40,6 @@ def parse_cdfd(
     ends: str | list[str] | None = None,
 ) -> CDFDGraph:
     fmt = input_format.lower()
-    if fmt == "yml":
-        fmt = "yaml"
 
     if fmt == "json":
         try:
@@ -52,16 +47,6 @@ def parse_cdfd(
         except json.JSONDecodeError as exc:
             raise ParseError(f"Invalid JSON: {exc}") from exc
         return _graph_from_mapping(data, start_override=start, ends_override=ends)
-
-    if fmt == "yaml":
-        try:
-            data = yaml.safe_load(content)
-        except yaml.YAMLError as exc:
-            raise ParseError(f"Invalid YAML: {exc}") from exc
-        return _graph_from_mapping(data, start_override=start, ends_override=ends)
-
-    if fmt == "csv":
-        return _graph_from_csv(content, start=start, ends=ends)
 
     if fmt == "cdfd":
         return parse_sofl_cdfd_graph(content, start=start, ends=ends)
@@ -77,12 +62,6 @@ def parse_project(
     ends: str | list[str] | None = None,
 ) -> CDFDProject:
     fmt = input_format.lower()
-    if fmt == "yml":
-        fmt = "yaml"
-
-    if fmt == "csv":
-        graph = _graph_from_csv(content, start=start, ends=ends)
-        return CDFDProject(graphs={"main": graph}, entry_graph="main")
 
     if fmt == "cdfd":
         return parse_sofl_cdfd_project(content, start=start, ends=ends)
@@ -93,13 +72,6 @@ def parse_project(
         except json.JSONDecodeError as exc:
             raise ParseError(f"Invalid JSON: {exc}") from exc
         _validate_project_json(data)
-        return _project_from_mapping(data, start_override=start, ends_override=ends)
-
-    if fmt == "yaml":
-        try:
-            data = yaml.safe_load(content)
-        except yaml.YAMLError as exc:
-            raise ParseError(f"Invalid YAML: {exc}") from exc
         return _project_from_mapping(data, start_override=start, ends_override=ends)
 
     raise ParseError(f"Unsupported input format: {input_format}")
@@ -518,75 +490,6 @@ def _parse_structure_branches(raw_branches: Any, structure_id: str) -> list[Stru
         )
 
     return branches
-
-
-def _graph_from_csv(
-    content: str,
-    *,
-    start: str | None,
-    ends: str | list[str] | None,
-) -> CDFDGraph:
-    coerced_ends = set(_coerce_id_list(ends, "ends"))
-
-    reader = csv.DictReader(StringIO(content))
-    if reader.fieldnames is None:
-        raise ParseError("CSV input must include a header row.")
-
-    normalized_headers = {name.lower().strip(): name for name in reader.fieldnames}
-    if "from" not in normalized_headers or "to" not in normalized_headers:
-        raise ParseError("CSV input must contain 'from' and 'to' columns.")
-
-    edges: list[Edge] = []
-    nodes: dict[str, Node] = {}
-    seen_ids: set[str] = set()
-
-    for index, row in enumerate(reader, start=1):
-        row = {key.lower().strip(): value for key, value in row.items() if key}
-        source = _optional_str(row.get("from"))
-        target = _optional_str(row.get("to"))
-        if not source or not target:
-            raise ParseError(f"CSV row {index} must include from and to values.")
-
-        nodes.setdefault(source, Node(id=source))
-        nodes.setdefault(target, Node(id=target))
-
-        edge_id = _optional_str(row.get("id")) or f"e{index}"
-        if edge_id in seen_ids:
-            raise ParseError(f"Duplicate edge id: {edge_id}")
-        seen_ids.add(edge_id)
-
-        known = {"id", "from", "to", "kind", "data", "condition", "label"}
-        metadata = {
-            key: value
-            for key, value in row.items()
-            if key not in known and value not in (None, "")
-        }
-        edges.append(
-            Edge(
-                id=edge_id,
-                source=source,
-                target=target,
-                kind=_normalize_edge_kind(row.get("kind") or "flow"),
-                data=_coerce_id_list(row.get("data"), "data"),
-                condition=_optional_str(row.get("condition")),
-                label=_optional_str(row.get("label")),
-                metadata=metadata,
-            )
-        )
-
-    starts = set(_coerce_id_list(start, "starts"))
-    for node_id in [node_id for node_id in [*starts, *coerced_ends] if node_id]:
-        nodes.setdefault(node_id, Node(id=node_id))
-
-    return _build_graph(
-        nodes=nodes,
-        edges=edges,
-        start=next(iter(starts), None),
-        starts=starts,
-        ends=coerced_ends,
-        structures=[],
-        metadata={},
-    )
 
 
 def _build_graph(
