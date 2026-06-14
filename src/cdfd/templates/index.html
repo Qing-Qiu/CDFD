@@ -1,0 +1,1095 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CDFD Path Generator</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #172026;
+      --muted: #64717b;
+      --line: #d9e0e6;
+      --accent: #2f6f73;
+      --accent-dark: #24565a;
+      --warn: #b45309;
+      --error: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    main {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    section {
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .input-panel .panel-body {
+      padding: 12px;
+    }
+
+    .input-actions {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) 150px 170px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .input-actions .field {
+      margin: 0;
+    }
+
+    .input-actions button {
+      min-height: 41px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      width: 100%;
+      font: inherit;
+    }
+
+    input,
+    select,
+    textarea {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 11px;
+      background: #ffffff;
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 360px;
+      resize: vertical;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #ffffff;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    button:hover {
+      background: var(--accent-dark);
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: 0.65;
+    }
+
+    .workspace {
+      border: 0;
+      background: transparent;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.72fr) minmax(560px, 1.6fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .path-list {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin: 0;
+      list-style: none;
+      background: #ffffff;
+    }
+
+    .path-list li {
+      padding: 11px 4px;
+      border-bottom: 1px solid var(--line);
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .path-list li:last-child {
+      border-bottom: 0;
+    }
+
+    .path-column {
+      display: grid;
+      grid-template-rows: minmax(260px, 1fr) auto auto;
+      gap: 12px;
+      min-height: calc(100vh - 166px);
+    }
+
+    .path-section {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .list-title {
+      margin: 0 0 7px;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .count {
+      margin-left: 5px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .group-list {
+      max-height: 240px;
+    }
+
+    .path-detail {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      font-size: 12px;
+    }
+
+    .concurrent-tree {
+      display: block;
+      margin-top: 6px;
+      color: var(--ink);
+      font-family: Consolas, Monaco, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre;
+    }
+
+    .path-list li.clickable {
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 4px 6px;
+      margin: -4px -6px;
+    }
+
+    .path-list li.clickable:hover,
+    .path-list li.clickable.active {
+      background: #eef6f7;
+    }
+
+    .path-list li.concurrent-item {
+      border-left: 3px solid #1890ff;
+      padding-left: 8px;
+      margin-bottom: 10px;
+    }
+
+  @keyframes flow {
+    to { stroke-dashoffset: -20; }
+  }
+
+  .parallel-active-edge {
+    stroke: #1890ff !important;
+    stroke-width: 3px !important;
+    stroke-dasharray: 5, 5;
+    animation: flow 1s linear infinite;
+  }
+
+  .visual svg .data-flow.parallel-active-edge {
+    marker-end: url(#arrow);
+  }
+
+    .graph-panel {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-width: 0;
+      min-height: calc(100vh - 166px);
+    }
+
+    .visual {
+      position: relative;
+      min-height: 620px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .visual.dragging {
+      cursor: grabbing;
+    }
+
+    .visual > svg {
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: block;
+      max-width: none;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    .visual-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 7px;
+      align-items: center;
+    }
+
+    .visual-head .field {
+      width: min(190px, 100%);
+      margin-bottom: 0;
+    }
+
+    .visual-head select {
+      padding: 7px 9px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .graph-tools {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 40px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+    }
+
+    .graph-tool {
+      width: 34px;
+      height: 32px;
+      min-height: 32px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .graph-tool:hover:not(:disabled) {
+      border-color: var(--line);
+      background: #f1f4f6;
+    }
+
+    .graph-tool:disabled {
+      cursor: default;
+      opacity: 0.4;
+    }
+
+    .graph-tool.fit-icon {
+      font-size: 16px;
+    }
+
+    .zoom-level {
+      width: 52px;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .message {
+      margin-bottom: 10px;
+      border-radius: 6px;
+      padding: 9px 11px;
+      color: #102a43;
+      background: #edf7f7;
+      border: 1px solid #b8dedc;
+    }
+
+    .message[hidden] {
+      display: none;
+    }
+
+    .message.error {
+      color: var(--error);
+      background: #fff4f2;
+      border-color: #ffcdc7;
+    }
+
+    .message.warn {
+      color: var(--warn);
+      background: #fff7ed;
+      border-color: #fed7aa;
+    }
+
+    .source-editor {
+      margin-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .source-editor summary {
+      width: max-content;
+      padding: 9px 0 0;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .source-editor .field {
+      margin: 0;
+      padding-top: 10px;
+    }
+
+    .warning-panel {
+      margin-top: 12px;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 24px;
+      text-align: center;
+    }
+
+    @media (max-width: 980px) {
+      .result-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .input-actions {
+        grid-template-columns: 1fr 150px;
+      }
+
+      .input-actions button {
+        grid-column: 1 / -1;
+      }
+
+      .path-column,
+      .graph-panel {
+        min-height: 0;
+      }
+
+      .path-section {
+        min-height: 320px;
+      }
+
+      .visual-head {
+        align-items: stretch;
+      }
+
+      .visual {
+        min-height: 520px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .input-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .input-actions button {
+        grid-column: auto;
+      }
+
+      .visual-head {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .visual-head .field {
+        width: 100%;
+      }
+
+      .graph-tools {
+        align-self: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CDFD Path Generator</h1>
+  </header>
+
+  <main>
+    <section class="input-panel">
+      <div class="panel-body">
+        <div class="input-actions">
+          <div class="field">
+            <label for="fileInput">CDFD file</label>
+            <input id="fileInput" type="file" accept=".json,.cdfd,application/json,text/xml">
+          </div>
+          <div class="field">
+            <label for="inputFormat">Format</label>
+            <select id="inputFormat">
+              <option value="json">CDFD JSON</option>
+              <option value="cdfd">SOFL .cdfd</option>
+            </select>
+          </div>
+          <button id="runButton" type="button">Generate Paths</button>
+        </div>
+
+        <details class="source-editor">
+          <summary>View or edit CDFD source</summary>
+          <div class="field">
+            <label for="content">CDFD source</label>
+            <textarea id="content" spellcheck="false">{
+  "schema_version": "cdfd-json-v1",
+  "module": {
+    "name": "ParallelExample",
+    "var": ["x1", "x2", "x3", "x4", "x5"],
+    "behav": "Top"
+  },
+  "processes": [
+    {
+      "id": "A",
+      "inputs": ["x1"],
+      "outputs": ["x2", "x3"],
+      "pre": "x1 is available",
+      "post": "x2 and x3 are derived from x1"
+    },
+    { "id": "B", "inputs": ["x2"], "outputs": ["x4"] },
+    { "id": "C", "inputs": ["x3"], "outputs": ["x5"] }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "IN",
+      "ends": ["OUT_X4", "OUT_X5"],
+      "nodes": [
+        { "id": "IN", "type": "external", "label": "Input" },
+        { "id": "A", "type": "process" },
+        { "id": "B", "type": "process" },
+        { "id": "C", "type": "process" },
+        { "id": "OUT_X4", "type": "external", "label": "Output x4" },
+        { "id": "OUT_X5", "type": "external", "label": "Output x5" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "IN", "to": "A", "data": ["x1"] },
+        { "id": "e2", "from": "A", "to": "B", "data": ["x2"] },
+        { "id": "e3", "from": "A", "to": "C", "data": ["x3"] },
+        { "id": "e4", "from": "B", "to": "OUT_X4", "data": ["x4"] },
+        { "id": "e5", "from": "C", "to": "OUT_X5", "data": ["x5"] }
+      ],
+      "structures": [
+        {
+          "id": "par_A",
+          "kind": "parallel",
+          "source": "A",
+          "branches": [
+            { "id": "x4_branch", "edges": ["e2", "e4"] },
+            { "id": "x5_branch", "edges": ["e3", "e5"] }
+          ]
+        }
+      ]
+    }
+  }
+}</textarea>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div id="message" class="message" hidden></div>
+      <div class="result-grid">
+          <div class="path-column">
+            <div class="path-section">
+              <h2 class="list-title">Concurrent paths <span id="concurrentCount" class="count">0</span></h2>
+              <ul id="concurrentPaths" class="path-list">
+                <li class="empty">Run the generator to see concurrent paths.</li>
+              </ul>
+            </div>
+            <div class="path-section">
+              <h2 class="list-title">Linear paths <span id="pathCount" class="count">0</span></h2>
+              <ul id="paths" class="path-list">
+                <li class="empty">Run the generator to see paths.</li>
+              </ul>
+            </div>
+            <div>
+              <h2 class="list-title">Path relations</h2>
+              <ul id="pathRelations" class="path-list group-list">
+                <li class="empty">Run the generator to see relations.</li>
+              </ul>
+            </div>
+            <div id="consistencyPanel" class="warning-panel" hidden>
+              <h2 class="list-title">Input warnings</h2>
+              <ul id="consistencyIssues" class="path-list group-list"></ul>
+            </div>
+          </div>
+          <div class="graph-panel">
+            <div class="visual-head">
+              <div id="graphLayerField" class="field" hidden>
+                <label class="visually-hidden" for="graphLayer">Graph layer</label>
+                <select id="graphLayer" disabled>
+                  <option value="">-</option>
+                </select>
+              </div>
+              <div class="graph-tools" role="toolbar" aria-label="Graph view controls">
+                <button id="zoomOut" class="graph-tool" type="button" title="Zoom out" aria-label="Zoom out" disabled>&minus;</button>
+                <output id="zoomLevel" class="zoom-level" aria-live="polite">100%</output>
+                <button id="zoomIn" class="graph-tool" type="button" title="Zoom in" aria-label="Zoom in" disabled>+</button>
+                <button id="resetZoom" class="graph-tool fit-icon" type="button" title="Actual size" aria-label="Actual size" disabled>1:1</button>
+                <button id="fitGraph" class="graph-tool fit-icon" type="button" title="Fit graph to view" aria-label="Fit graph to view" disabled>&#9635;</button>
+              </div>
+            </div>
+            <div id="visual" class="visual">
+              <div class="empty">Graph visualization will appear here.</div>
+            </div>
+          </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const content = document.getElementById("content");
+    const runButton = document.getElementById("runButton");
+    const message = document.getElementById("message");
+    const inputFormat = document.getElementById("inputFormat");
+    const paths = document.getElementById("paths");
+    const concurrentPaths = document.getElementById("concurrentPaths");
+    const pathRelations = document.getElementById("pathRelations");
+    const consistencyPanel = document.getElementById("consistencyPanel");
+    const consistencyIssues = document.getElementById("consistencyIssues");
+    const visual = document.getElementById("visual");
+    const pathCount = document.getElementById("pathCount");
+    const concurrentCount = document.getElementById("concurrentCount");
+    const graphLayerField = document.getElementById("graphLayerField");
+    const graphLayer = document.getElementById("graphLayer");
+    const zoomOut = document.getElementById("zoomOut");
+    const zoomIn = document.getElementById("zoomIn");
+    const resetZoom = document.getElementById("resetZoom");
+    const fitGraph = document.getElementById("fitGraph");
+    const zoomLevel = document.getElementById("zoomLevel");
+    let graphSvgs = {};
+    let graphViewStates = {};
+    let activeGraphName = "";
+    let graphSvg = null;
+    let graphSize = { width: 0, height: 0 };
+    let dragState = null;
+    let analysisData = null;
+    let activeRelationId = null;
+    const MIN_SCALE = 0.2;
+    const MAX_SCALE = 3;
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      content.value = await file.text();
+      const suffix = file.name.split(".").pop().toLowerCase();
+      if (["json", "cdfd"].includes(suffix)) {
+        inputFormat.value = suffix;
+      }
+    });
+
+    runButton.addEventListener("click", async () => {
+      setMessage("", "");
+      runButton.disabled = true;
+      runButton.textContent = "Generating...";
+      paths.innerHTML = "";
+      concurrentPaths.innerHTML = "";
+      pathRelations.innerHTML = "";
+      consistencyIssues.innerHTML = "";
+      consistencyPanel.hidden = true;
+      visual.innerHTML = '<div class="empty">Working...</div>';
+      disableGraphControls();
+
+      const payload = {
+        content: content.value,
+        input_format: inputFormat.value,
+        expand: true
+      };
+
+      try {
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Request failed.");
+        }
+
+        const project = data.project || {
+          entry_graph: "main",
+          graph_count: 1,
+          total_nodes: data.graph ? data.graph.nodes.length : 0,
+          total_edges: data.graph ? data.graph.edges.length : 0,
+          graphs: data.graph ? { main: data.graph } : {}
+        };
+        analysisData = data;
+        pathCount.textContent = data.paths.length;
+        concurrentCount.textContent = (data.concurrent_paths || []).length;
+        renderConcurrentPaths(data.concurrent_paths || []);
+        renderPaths(data.paths);
+        renderPathRelations(data.path_relations || []);
+        renderConsistencyIssues(data.consistency_issues || []);
+        graphSvgs = data.graph_svgs || { [project.entry_graph || "main"]: data.svg };
+        graphViewStates = {};
+        renderGraphSelector(project.entry_graph, graphSvgs);
+
+        const cycleCount = Object.values(data.cycles).reduce((total, graphCycles) => total + graphCycles.length, 0);
+        const consistencyCount = (data.consistency_issues || []).length;
+        if (cycleCount) {
+          setMessage(`${cycleCount} cycle(s) detected and handled.`, "warn");
+        } else if (consistencyCount) {
+          setMessage(`${consistencyCount} CDFD consistency warning(s) detected.`, "warn");
+        } else {
+          setMessage("", "");
+        }
+      } catch (error) {
+        pathCount.textContent = "0";
+        concurrentCount.textContent = "0";
+        paths.innerHTML = '<li class="empty">No paths.</li>';
+        concurrentPaths.innerHTML = '<li class="empty">No concurrent paths.</li>';
+        pathRelations.innerHTML = '<li class="empty">No relations.</li>';
+        consistencyIssues.innerHTML = "";
+        consistencyPanel.hidden = true;
+        visual.innerHTML = '<div class="empty">No graph.</div>';
+        graphLayer.innerHTML = '<option value="">-</option>';
+        graphLayer.disabled = true;
+        graphLayerField.hidden = true;
+        graphSvgs = {};
+        graphViewStates = {};
+        activeGraphName = "";
+        graphSvg = null;
+        analysisData = null;
+        activeRelationId = null;
+        disableGraphControls();
+        setMessage(error.message, "error");
+      } finally {
+        runButton.disabled = false;
+        runButton.textContent = "Generate Paths";
+      }
+    });
+
+    graphLayer.addEventListener("change", () => {
+      mountGraph(graphLayer.value);
+    });
+
+    zoomOut.addEventListener("click", () => zoomGraph(1 / 1.2));
+    zoomIn.addEventListener("click", () => zoomGraph(1.2));
+    resetZoom.addEventListener("click", resetGraphZoom);
+    fitGraph.addEventListener("click", fitGraphToView);
+
+    visual.addEventListener("wheel", (event) => {
+      if (!graphSvg) return;
+      event.preventDefault();
+      const rect = visual.getBoundingClientRect();
+      const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+      zoomGraph(factor, event.clientX - rect.left, event.clientY - rect.top);
+    }, { passive: false });
+
+    visual.addEventListener("pointerdown", (event) => {
+      if (!graphSvg || event.button !== 0) return;
+      const state = currentGraphViewState();
+      dragState = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        panX: state.panX,
+        panY: state.panY
+      };
+      state.autoFit = false;
+      visual.classList.add("dragging");
+      visual.setPointerCapture(event.pointerId);
+    });
+
+    visual.addEventListener("pointermove", (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) return;
+      const state = currentGraphViewState();
+      state.panX = dragState.panX + event.clientX - dragState.x;
+      state.panY = dragState.panY + event.clientY - dragState.y;
+      applyGraphTransform();
+    });
+
+    visual.addEventListener("pointerup", stopGraphDrag);
+    visual.addEventListener("pointercancel", stopGraphDrag);
+
+    const graphResizeObserver = new ResizeObserver(() => {
+      const state = graphViewStates[activeGraphName];
+      if (!graphSvg || !state || !state.autoFit) return;
+      requestAnimationFrame(fitGraphToView);
+    });
+    graphResizeObserver.observe(visual);
+
+    function stopGraphDrag(event) {
+      if (!dragState || event.pointerId !== dragState.pointerId) return;
+      dragState = null;
+      visual.classList.remove("dragging");
+      if (visual.hasPointerCapture(event.pointerId)) {
+        visual.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    function mountGraph(name) {
+      activeGraphName = name || "";
+      const svgMarkup = graphSvgs[activeGraphName];
+      if (!svgMarkup) {
+        visual.innerHTML = '<div class="empty">No graph.</div>';
+        graphSvg = null;
+        graphSize = { width: 0, height: 0 };
+        disableGraphControls();
+        return;
+      }
+
+      visual.innerHTML = svgMarkup;
+      graphSvg = visual.querySelector("svg");
+      clearParallelEdgeAnimation();
+      if (!graphSvg) {
+        disableGraphControls();
+        return;
+      }
+
+      const viewBox = graphSvg.viewBox.baseVal;
+      graphSize = {
+        width: viewBox && viewBox.width ? viewBox.width : Number(graphSvg.getAttribute("width") || 1),
+        height: viewBox && viewBox.height ? viewBox.height : Number(graphSvg.getAttribute("height") || 1)
+      };
+      graphSvg.style.width = `${graphSize.width}px`;
+      graphSvg.style.height = `${graphSize.height}px`;
+      graphViewStates[activeGraphName] ||= {
+        scale: 1,
+        panX: 0,
+        panY: 0,
+        autoFit: true
+      };
+      enableGraphControls();
+
+      requestAnimationFrame(() => {
+        const state = currentGraphViewState();
+        if (state.autoFit) {
+          fitGraphToView();
+        } else {
+          applyGraphTransform();
+        }
+      });
+    }
+
+    function currentGraphViewState() {
+      return graphViewStates[activeGraphName];
+    }
+
+    function zoomGraph(factor, centerX = visual.clientWidth / 2, centerY = visual.clientHeight / 2) {
+      if (!graphSvg) return;
+      const state = currentGraphViewState();
+      const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, state.scale * factor));
+      if (Math.abs(nextScale - state.scale) < 0.0001) return;
+      const graphX = (centerX - state.panX) / state.scale;
+      const graphY = (centerY - state.panY) / state.scale;
+      state.panX = centerX - graphX * nextScale;
+      state.panY = centerY - graphY * nextScale;
+      state.scale = nextScale;
+      state.autoFit = false;
+      applyGraphTransform();
+    }
+
+    function resetGraphZoom() {
+      if (!graphSvg) return;
+      const state = currentGraphViewState();
+      state.scale = 1;
+      state.panX = (visual.clientWidth - graphSize.width) / 2;
+      state.panY = (visual.clientHeight - graphSize.height) / 2;
+      state.autoFit = false;
+      applyGraphTransform();
+    }
+
+    function fitGraphToView() {
+      if (!graphSvg || !graphSize.width || !graphSize.height) return;
+      const state = currentGraphViewState();
+      const availableWidth = Math.max(1, visual.clientWidth - 32);
+      const availableHeight = Math.max(1, visual.clientHeight - 32);
+      state.scale = Math.min(
+        MAX_SCALE,
+        Math.max(MIN_SCALE, Math.min(availableWidth / graphSize.width, availableHeight / graphSize.height))
+      );
+      state.panX = (visual.clientWidth - graphSize.width * state.scale) / 2;
+      state.panY = (visual.clientHeight - graphSize.height * state.scale) / 2;
+      state.autoFit = true;
+      applyGraphTransform();
+    }
+
+    function applyGraphTransform() {
+      if (!graphSvg) return;
+      const state = currentGraphViewState();
+      graphSvg.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+      zoomLevel.value = `${Math.round(state.scale * 100)}%`;
+      zoomLevel.textContent = zoomLevel.value;
+    }
+
+    function enableGraphControls() {
+      zoomOut.disabled = false;
+      zoomIn.disabled = false;
+      resetZoom.disabled = false;
+      fitGraph.disabled = false;
+    }
+
+    function disableGraphControls() {
+      zoomOut.disabled = true;
+      zoomIn.disabled = true;
+      resetZoom.disabled = true;
+      fitGraph.disabled = true;
+      zoomLevel.value = "100%";
+      zoomLevel.textContent = "100%";
+    }
+
+    function renderConcurrentPaths(items) {
+      concurrentPaths.innerHTML = "";
+      if (!items.length) {
+        concurrentPaths.innerHTML = '<li class="empty">No concurrent paths found.</li>';
+        return;
+      }
+      for (const item of items) {
+        const li = document.createElement("li");
+        li.className = "concurrent-item clickable";
+        li.dataset.edgeIds = JSON.stringify(item.edges || []);
+        const title = document.createElement("strong");
+        title.textContent = `${item.id || "CP"}  ${item.notation || formatRoute(item)}`;
+        li.appendChild(title);
+        if (item.tree_lines && item.tree_lines.length) {
+          const tree = document.createElement("span");
+          tree.className = "concurrent-tree";
+          tree.textContent = item.tree_lines.join("\n");
+          li.appendChild(tree);
+        }
+        const constraints = item.conditions?.length ? item.conditions : item.preconditions;
+        if (constraints && constraints.length) {
+          const detail = document.createElement("span");
+          detail.className = "path-detail";
+          detail.textContent = `Conditions: ${constraints.join(", ")}`;
+          li.appendChild(detail);
+        }
+        li.addEventListener("click", () => {
+          highlightParallelEdges(item.edges || [], item.id || "");
+          concurrentPaths.querySelectorAll("li.clickable").forEach((node) => node.classList.remove("active"));
+          li.classList.add("active");
+        });
+        concurrentPaths.appendChild(li);
+      }
+    }
+
+    function renderPaths(items) {
+      paths.innerHTML = "";
+      if (!items.length) {
+        paths.innerHTML = '<li class="empty">No paths found.</li>';
+        return;
+      }
+      for (const item of items) {
+        const li = document.createElement("li");
+        const route = document.createElement("strong");
+        route.textContent = `${item.id ? `${item.id}  ` : ""}${formatRoute(item)}`;
+        li.appendChild(route);
+        const constraints = item.conditions.length ? item.conditions : item.preconditions;
+        if (constraints.length) {
+          const detail = document.createElement("span");
+          detail.className = "path-detail";
+          detail.textContent = `Conditions: ${constraints.join(", ")}`;
+          li.appendChild(detail);
+        }
+        paths.appendChild(li);
+      }
+    }
+
+    function renderPathRelations(items) {
+      pathRelations.innerHTML = "";
+      if (!items.length) {
+        pathRelations.innerHTML = '<li class="empty">No path relations detected.</li>';
+        return;
+      }
+      for (const item of items) {
+        const li = document.createElement("li");
+        li.className = "clickable";
+        li.dataset.edgeIds = JSON.stringify(item.edges || []);
+        const label = item.title || item.kind;
+        const connector = relationConnector(item.kind);
+        const relation = document.createElement("strong");
+        relation.textContent = `${item.id}  ${item.path_ids.join(connector)}`;
+        li.appendChild(relation);
+        const details = [label];
+        if (item.outputs.length) {
+          details.push(`Outputs: ${item.outputs.join(", ")}`);
+        }
+        if (item.shared_prefix.length) {
+          details.push(`Shared: ${item.shared_prefix.join(" -> ")}`);
+        }
+        const detail = document.createElement("span");
+        detail.className = "path-detail";
+        detail.textContent = details.join(" · ");
+        li.appendChild(detail);
+        li.addEventListener("click", () => {
+          const edgeIds = item.kind === "parallel" ? item.edges : collectPathEdges(item.path_ids);
+          highlightParallelEdges(edgeIds, item.id);
+          pathRelations.querySelectorAll("li.clickable").forEach((node) => node.classList.remove("active"));
+          li.classList.add("active");
+        });
+        pathRelations.appendChild(li);
+      }
+    }
+
+    function collectPathEdges(pathIds) {
+      if (!analysisData || !analysisData.paths) return [];
+      const edges = [];
+      for (const pathId of pathIds) {
+        const path = analysisData.paths.find((entry) => entry.id === pathId);
+        if (path && path.edges) {
+          edges.push(...path.edges);
+        }
+      }
+      return edges;
+    }
+
+    function clearParallelEdgeAnimation() {
+      if (!graphSvg) return;
+      graphSvg.querySelectorAll(".parallel-active-edge").forEach((edge) => {
+        edge.classList.remove("parallel-active-edge");
+      });
+    }
+
+    function highlightParallelEdges(edgeIds, relationId) {
+      if (!graphSvg) return;
+      clearParallelEdgeAnimation();
+      activeRelationId = relationId;
+      const normalized = new Set(edgeIds.map((edgeId) => edgeId.split(":").pop()));
+      graphSvg.querySelectorAll("[data-edge-id]").forEach((edgeElement) => {
+        const rawId = edgeElement.getAttribute("data-edge-id") || "";
+        const edgeId = rawId.split(":").pop();
+        if (normalized.has(edgeId) || normalized.has(rawId)) {
+          edgeElement.classList.add("parallel-active-edge");
+        }
+      });
+    }
+
+    function relationConnector(kind) {
+      if (kind === "parallel") {
+        return " || ";
+      }
+      if (kind === "exclusive") {
+        return " XOR ";
+      }
+      return " + ";
+    }
+
+    function renderConsistencyIssues(items) {
+      consistencyIssues.innerHTML = "";
+      if (!items.length) {
+        consistencyPanel.hidden = true;
+        return;
+      }
+      consistencyPanel.hidden = false;
+      for (const item of items) {
+        const li = document.createElement("li");
+        li.textContent = `${item.id}: ${item.message}`;
+        consistencyIssues.appendChild(li);
+      }
+    }
+
+    function setMessage(text, type) {
+      message.textContent = text;
+      message.className = type ? `message ${type}` : "message";
+      message.hidden = !text;
+    }
+
+    function formatRoute(item) {
+      if (item.route) {
+        return item.route;
+      }
+      if (item.data.length === item.nodes.length - 1) {
+        let route = item.nodes[0];
+        for (let index = 0; index < item.data.length; index += 1) {
+          route += ` --[${item.data[index]}]--> ${item.nodes[index + 1]}`;
+        }
+        return route;
+      }
+      return item.nodes.join(" -> ");
+    }
+
+    function renderGraphSelector(entryGraph, svgs) {
+      const names = Object.keys(svgs);
+      graphLayer.innerHTML = "";
+      for (const name of names) {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        graphLayer.appendChild(option);
+      }
+      const selected = names.includes(entryGraph) ? entryGraph : names[0];
+      graphLayer.value = selected;
+      graphLayer.disabled = names.length < 2;
+      graphLayerField.hidden = names.length < 2;
+      mountGraph(selected);
+    }
+  </script>
+</body>
+</html>

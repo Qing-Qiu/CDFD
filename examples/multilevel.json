@@ -1,0 +1,224 @@
+{
+  "schema_version": "cdfd-json-v1",
+  "module": {
+    "name": "ExampleModule",
+    "const": ["s1 = 1", "s2 = 2"],
+    "type": ["int", "real"],
+    "var": ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "y1", "y2", "z1", "z2", "z3", "d1", "d2"],
+    "behav": "Top"
+  },
+  "processes": [
+    {
+      "id": "A1",
+      "inputs": ["x1"],
+      "outputs": ["x2", "x3"],
+      "pre": "s1 == 1",
+      "post": "x2 and x3 are derived from x1",
+      "decom": "A1_detail"
+    },
+    {
+      "id": "A2",
+      "inputs": ["x2"],
+      "outputs": ["x4"],
+      "post": "x4 is derived from x2"
+    },
+    {
+      "id": "A3",
+      "inputs": ["x3"],
+      "outputs": ["x5", "x7"],
+      "post": "x5 or x7 is derived from x3",
+      "decom": "A3_detail"
+    },
+    {
+      "id": "A4",
+      "inputs": ["x4", "x5"],
+      "outputs": ["x6"],
+      "post": "x6 is produced from the selected upstream result"
+    },
+    {
+      "id": "A33",
+      "inputs": ["z2"],
+      "outputs": ["x7"],
+      "pre": "s2 == 2",
+      "post": "x7 is derived from z2 under s2 == 2",
+      "decom": "A33_detail"
+    },
+    {
+      "id": "A12",
+      "inputs": ["x1"],
+      "outputs": ["y1"],
+      "post": "y1 is prepared from x1"
+    },
+    {
+      "id": "A11",
+      "inputs": ["y1"],
+      "outputs": ["y2"],
+      "post": "y2 is derived from y1"
+    },
+    {
+      "id": "A13",
+      "inputs": ["y2"],
+      "outputs": ["x2", "x3"],
+      "post": "x2 and x3 are produced from y2"
+    },
+    {
+      "id": "A31",
+      "inputs": ["x3"],
+      "outputs": ["z1", "z2"],
+      "post": "z1 or z2 is selected from x3"
+    },
+    {
+      "id": "A32",
+      "inputs": ["z1"],
+      "outputs": ["x5"],
+      "post": "x5 is derived from z1"
+    },
+    {
+      "id": "A331",
+      "inputs": ["z2"],
+      "outputs": ["d1", "d2"],
+      "post": "d1 or d2 is selected from z2"
+    },
+    {
+      "id": "A332",
+      "inputs": ["d1"],
+      "outputs": ["z3"],
+      "post": "z3 is derived from d1"
+    },
+    {
+      "id": "A333",
+      "inputs": ["d2"],
+      "outputs": ["x7"],
+      "post": "x7 is derived from d2"
+    }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "IN",
+      "ends": ["OUT_X6", "OUT_X7"],
+      "nodes": [
+        { "id": "IN", "type": "external", "label": "Input" },
+        { "id": "S1", "type": "state", "label": "1 s1" },
+        { "id": "A1", "type": "process" },
+        { "id": "A2", "type": "process" },
+        { "id": "A3", "type": "process" },
+        { "id": "A4", "type": "process" },
+        { "id": "OUT_X6", "type": "external", "label": "Output x6" },
+        { "id": "OUT_X7", "type": "external", "label": "Output x7" }
+      ],
+      "edges": [
+        { "id": "e0", "from": "IN", "to": "A1", "data": ["x1"] },
+        { "id": "c1", "from": "S1", "to": "A1", "kind": "control", "condition": "s1 == 1" },
+        { "id": "e1", "from": "A1", "to": "A2", "data": ["x2"] },
+        { "id": "e2", "from": "A1", "to": "A3", "data": ["x3"] },
+        { "id": "e3", "from": "A2", "to": "A4", "data": ["x4"] },
+        { "id": "e4", "from": "A3", "to": "A4", "data": ["x5"] },
+        { "id": "e5", "from": "A4", "to": "OUT_X6", "data": ["x6"] },
+        { "id": "e6", "from": "A3", "to": "OUT_X7", "data": ["x7"] }
+      ],
+      "structures": [
+        {
+          "id": "join_x6",
+          "kind": "join",
+          "target": "A4",
+          "branches": [
+            { "id": "via_A2", "edges": ["e1", "e3", "e5"] },
+            { "id": "via_A3", "edges": ["e2", "e4", "e5"] }
+          ]
+        },
+        {
+          "id": "parallel_outputs",
+          "kind": "parallel",
+          "source": "A1",
+          "branches": [
+            { "id": "x6_branch", "edges": ["e1", "e3", "e5"] },
+            { "id": "x7_branch", "edges": ["e2", "e6"] }
+          ]
+        }
+      ]
+    },
+    "A1_detail": {
+      "start": "A12",
+      "ends": ["A13"],
+      "metadata": {
+        "inputs": {
+          "A12": ["x1"]
+        },
+        "outputs": {
+          "A13": ["x2", "x3"]
+        }
+      },
+      "nodes": ["A11", "A12", "A13"],
+      "edges": [
+        { "id": "e1", "from": "A12", "to": "A11", "data": ["y1"] },
+        { "id": "e2", "from": "A11", "to": "A13", "data": ["y2"] }
+      ]
+    },
+    "A3_detail": {
+      "start": "A31",
+      "ends": ["A32", "A33"],
+      "metadata": {
+        "inputs": {
+          "A31": ["x3"]
+        },
+        "outputs": {
+          "A32": ["x5"],
+          "A33": ["x7"]
+        }
+      },
+      "nodes": ["A31", "A32", "A33"],
+      "edges": [
+        { "id": "e1", "from": "A31", "to": "A32", "data": ["z1"] },
+        { "id": "e2", "from": "A31", "to": "A33", "data": ["z2"] }
+      ],
+      "structures": [
+        {
+          "id": "choice_A3_output",
+          "kind": "choice",
+          "source": "A31",
+          "branches": [
+            { "id": "z1_to_x5", "edges": ["e1"], "data": ["z1"] },
+            { "id": "z2_to_x7", "edges": ["e2"], "data": ["z2"] }
+          ]
+        }
+      ]
+    },
+    "A33_detail": {
+      "start": "A331",
+      "ends": ["OUT_Z3", "A333"],
+      "metadata": {
+        "inputs": {
+          "A331": ["z2"]
+        },
+        "outputs": {
+          "OUT_Z3": ["z3"],
+          "A333": ["x7"]
+        }
+      },
+      "nodes": [
+        { "id": "S2", "type": "state", "label": "2 s2" },
+        { "id": "A331", "type": "process" },
+        { "id": "A332", "type": "process" },
+        { "id": "A333", "type": "process" },
+        { "id": "OUT_Z3", "type": "external", "label": "Output z3" }
+      ],
+      "edges": [
+        { "id": "c1", "from": "S2", "to": "A331", "kind": "control", "condition": "s2 == 2" },
+        { "id": "e1", "from": "A331", "to": "A332", "data": ["d1"] },
+        { "id": "e2", "from": "A332", "to": "OUT_Z3", "data": ["z3"] },
+        { "id": "e3", "from": "A331", "to": "A333", "data": ["d2"] }
+      ],
+      "structures": [
+        {
+          "id": "choice_A33_output",
+          "kind": "choice",
+          "source": "A331",
+          "branches": [
+            { "id": "d1_to_z3", "edges": ["e1", "e2"], "data": ["d1", "z3"] },
+            { "id": "d2_to_x7", "edges": ["e3"], "data": ["d2"] }
+          ]
+        }
+      ]
+    }
+  }
+}

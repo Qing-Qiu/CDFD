@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cdfd-path-generator"
+version = "0.1.0"
+description = "A tool for generating all paths for a given CDFD."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "pydantic>=2",
+  "Jinja2>=3",
+  "jsonschema>=4",
+]
+
+[project.scripts]
+cdfd-paths = "cdfd.cli:main"
+cdfd-web = "cdfd.web:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cdfd = ["templates/*.html", "schemas/*.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

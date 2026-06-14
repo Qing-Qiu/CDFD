@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/cdfd-json-v1.schema.json",
+  "title": "CDFD JSON Format v1",
+  "type": "object",
+  "required": ["schema_version", "module", "processes", "graphs"],
+  "properties": {
+    "schema_version": {
+      "const": "cdfd-json-v1"
+    },
+    "entry_graph": {
+      "type": "string",
+      "minLength": 1
+    },
+    "module": {
+      "$ref": "#/$defs/module"
+    },
+    "processes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/process"
+      }
+    },
+    "graphs": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/graph"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "module": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "const": { "$ref": "#/$defs/stringList" },
+        "type": { "$ref": "#/$defs/stringList" },
+        "types": { "$ref": "#/$defs/stringList" },
+        "var": { "$ref": "#/$defs/stringList" },
+        "behav": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "process": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "inputs": { "$ref": "#/$defs/stringList" },
+        "outputs": { "$ref": "#/$defs/stringList" },
+        "pre": { "type": "string" },
+        "post": { "type": "string" },
+        "decom": { "type": "string" },
+        "decomposition": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "graph": {
+      "type": "object",
+      "required": ["nodes", "edges"],
+      "anyOf": [
+        { "required": ["start"] },
+        { "required": ["starts"] }
+      ],
+      "properties": {
+        "start": { "type": "string", "minLength": 1 },
+        "starts": { "$ref": "#/$defs/stringList" },
+        "end": { "type": ["string", "array"] },
+        "ends": { "$ref": "#/$defs/stringList" },
+        "nodes": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  { "type": "string", "minLength": 1 },
+                  { "$ref": "#/$defs/node" }
+                ]
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "$ref": "#/$defs/nodeWithoutId" }
+                ]
+              }
+            }
+          ]
+        },
+        "edges": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/edge"
+          }
+        },
+        "structures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/structure"
+          }
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "node": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": [
+            "process",
+            "external",
+            "data_store",
+            "state",
+            "connector",
+            "decision",
+            "data",
+            "start",
+            "end",
+            "single_condition",
+            "multiple_condition",
+            "binary_condition",
+            "broadcasting",
+            "separating",
+            "merging",
+            "connecting",
+            "nondeterministic",
+            "renaming"
+          ]
+        },
+        "label": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "nodeWithoutId": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "process",
+            "external",
+            "data_store",
+            "state",
+            "connector",
+            "decision",
+            "data",
+            "start",
+            "end",
+            "single_condition",
+            "multiple_condition",
+            "binary_condition",
+            "broadcasting",
+            "separating",
+            "merging",
+            "connecting",
+            "nondeterministic",
+            "renaming"
+          ]
+        },
+        "label": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "edge": {
+      "type": "object",
+      "anyOf": [
+        { "required": ["from", "to"] },
+        { "required": ["source", "target"] }
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "kind": {
+          "enum": ["flow", "active-flow", "control", "shadow"]
+        },
+        "data": { "$ref": "#/$defs/stringList" },
+        "condition": { "type": "string" },
+        "label": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "structure": {
+      "type": "object",
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": [
+            "parallel",
+            "broadcast",
+            "fork",
+            "separate",
+            "choice",
+            "condition",
+            "select",
+            "non-determinism",
+            "nondeterminism",
+            "join",
+            "merge",
+            "joined-output"
+          ]
+        },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "branches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/branch"
+          }
+        },
+        "edges": { "$ref": "#/$defs/stringList" },
+        "nodes": { "$ref": "#/$defs/stringList" },
+        "data": { "$ref": "#/$defs/stringList" },
+        "condition": { "type": "string" },
+        "label": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "branch": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "edges": { "$ref": "#/$defs/stringList" },
+        "nodes": { "$ref": "#/$defs/stringList" },
+        "data": { "$ref": "#/$defs/stringList" },
+        "condition": { "type": "string" },
+        "label": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

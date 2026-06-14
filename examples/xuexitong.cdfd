@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CDFD module="xuexitong">
+  <componentList>
+    <process name="userLogin" inputPorts="2" outputPorts="1" x="546" y="300" width="176" height="104" shapeIndex="0" />
+    <dataStore name="user_db" no="" x="595" y="194" width="100" height="20" shapeIndex="1" />
+    <process name="查看我的课程" inputPorts="1" outputPorts="1" x="1083" y="198" width="150" height="100" shapeIndex="2" />
+    <process name="提交作业" inputPorts="1" outputPorts="1" x="1074" y="390" width="150" height="92" shapeIndex="3" />
+    <dataStore name="course_db" no="" x="881" y="96" width="100" height="20" shapeIndex="4" />
+    <singleCondition condition="账号密码正确" x="773" y="303" width="119" height="90" shapeIndex="5" />
+    <dataStore name="homework_db" no="" x="1349" y="421" width="137" height="20" shapeIndex="6" />
+    <process name="user" inputPorts="1" outputPorts="2" x="251" y="294" width="150" height="100" shapeIndex="7" />
+    <process name="修改作业" inputPorts="1" outputPorts="1" x="1082" y="561" width="150" height="100" shapeIndex="8" />
+  </componentList>
+  <connectionList>
+    <controlDataFlow name="userAccount" fromX="403" fromY="332" toX="546" toY="330">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="userLogin" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+    </controlDataFlow>
+    <controlDataFlow name="passWord" fromX="406" fromY="376" toX="546" toY="372">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="userLogin" belongToType="Process" belongToConnector="1" shapeIndex="0" />
+    </controlDataFlow>
+    <activeDataFlow name="" type="" fromX="648" fromY="216" toX="636" toY="301">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <dataFlow fromX="892" fromY="349" toX="1082" toY="240">
+      <from belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+      <to belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+    </dataFlow>
+    <dataFlow fromX="895" fromY="348" toX="1077" toY="440">
+      <from belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+      <to belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+    </dataFlow>
+    <dataFlow fromX="931" fromY="116" toX="1158" toY="198">
+      <from belongToName="course_db" no="" belongToType="DataStore" belongToConnector="Bottom" connectorIndex="0" shapeIndex="4" />
+      <to belongToName="查看我的课程" no="" belongToType="ProcessTopBottom" belongToConnector="Top" connectorIndex="1" shapeIndex="2" />
+    </dataFlow>
+    <dataFlow fromX="720" fromY="350" toX="771" toY="348">
+      <from belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+      <to belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+    </dataFlow>
+    <controlDataFlow name="课程信息" fromX="1233" fromY="247" toX="1356" toY="246">
+      <from belongToName="查看我的课程" belongToType="Process" belongToConnector="0" shapeIndex="2" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </controlDataFlow>
+    <dataFlow fromX="1222" fromY="434" toX="1347" toY="432">
+      <from belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+      <to belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+    </dataFlow>
+    <dataFlow fromX="890" fromY="351" toX="1085" toY="613">
+      <from belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+      <to belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+    </dataFlow>
+    <dataFlow fromX="1233" fromY="610" toX="1417" toY="441">
+      <from belongToName="" no="" belongToType="outSide" belongToConnector="" connectorIndex="-1" shapeIndex="-1" />
+      <to belongToName="homework_db" no="" belongToType="DataStore" belongToConnector="Bottom" connectorIndex="0" shapeIndex="6" />
+    </dataFlow>
+  </connectionList>
+</CDFD>

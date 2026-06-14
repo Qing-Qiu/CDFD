@@ -1,0 +1,45 @@
+{
+  "schema_version": "cdfd-json-v1",
+  "module": {
+    "name": "DataStoreExample",
+    "var": ["request", "stored_profile", "response"],
+    "behav": "Top"
+  },
+  "processes": [
+    {
+      "id": "BuildResponse",
+      "inputs": ["request", "stored_profile"],
+      "outputs": ["response"],
+      "pre": "request and stored_profile are available",
+      "post": "response is derived from request and stored_profile"
+    }
+  ],
+  "graphs": {
+    "Top": {
+      "starts": ["IN", "PROFILE_STORE"],
+      "ends": ["OUT"],
+      "nodes": [
+        { "id": "IN", "type": "external", "label": "Request" },
+        { "id": "PROFILE_STORE", "type": "data_store", "label": "Profile store" },
+        { "id": "BuildResponse", "type": "process" },
+        { "id": "OUT", "type": "external", "label": "Response" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "IN", "to": "BuildResponse", "data": ["request"] },
+        { "id": "e2", "from": "PROFILE_STORE", "to": "BuildResponse", "data": ["stored_profile"] },
+        { "id": "e3", "from": "BuildResponse", "to": "OUT", "data": ["response"] }
+      ],
+      "structures": [
+        {
+          "id": "join_response_inputs",
+          "kind": "join",
+          "target": "BuildResponse",
+          "branches": [
+            { "id": "request_branch", "edges": ["e1", "e3"] },
+            { "id": "profile_branch", "edges": ["e2", "e3"] }
+          ]
+        }
+      ]
+    }
+  }
+}

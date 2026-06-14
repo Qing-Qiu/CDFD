@@ -1,0 +1,48 @@
+{
+  "schema_version": "cdfd-json-v1",
+  "module": {
+    "name": "LoopExample",
+    "var": ["x1", "x_retry", "x_done"],
+    "behav": "Top"
+  },
+  "processes": [
+    {
+      "id": "A",
+      "inputs": ["x_retry"],
+      "outputs": ["x1"]
+    },
+    {
+      "id": "B",
+      "inputs": ["x1"],
+      "outputs": ["x_retry", "x_done"]
+    }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "A",
+      "ends": ["C"],
+      "nodes": [
+        {"id": "A", "type": "process"},
+        {"id": "B", "type": "process"},
+        {"id": "C", "type": "external", "label": "Output"}
+      ],
+      "edges": [
+        {"id": "e1", "from": "A", "to": "B", "data": ["x1"]},
+        {
+          "id": "e2",
+          "from": "B",
+          "to": "A",
+          "data": ["x_retry"],
+          "condition": "retry"
+        },
+        {
+          "id": "e3",
+          "from": "B",
+          "to": "C",
+          "data": ["x_done"],
+          "condition": "done"
+        }
+      ]
+    }
+  }
+}
