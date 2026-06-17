@@ -83,11 +83,9 @@ def test_data_store_example_generates_paths_from_multiple_starts():
 
     assert project.entry().starts == {"IN", "PROFILE_STORE"}
     assert [path.nodes for path in paths] == [
-        ["IN", "BuildResponse", "OUT"],
-        ["PROFILE_STORE", "BuildResponse", "OUT"],
+        ["IN", "PROFILE_STORE", "BuildResponse", "OUT"],
     ]
-    assert [relation.kind for relation in relations] == ["joined-output"]
-    assert relations[0].structure_id == "join_response_inputs"
+    assert relations == []
 
 
 def test_multilevel_example_keeps_paths_and_relations_distinct():

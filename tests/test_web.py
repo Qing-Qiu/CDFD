@@ -41,11 +41,15 @@ def test_web_analyze_endpoint():
     )
 
     assert response.status_code == 200
-    assert response.json()["paths"][0]["nodes"] == ["IN", "A", "B"]
-    assert response.json()["paths"][0]["id"] == "P1"
-    assert response.json()["functional_scenarios"][0]["id"] == "FS1"
-    assert response.json()["functional_scenarios"][0]["path_ids"] == ["P1"]
-    assert response.json()["consistency_issues"] == []
+    payload = response.json()
+    assert payload["paths"][0]["nodes"] == ["IN", "A", "B"]
+    assert payload["paths"][0]["id"] == "P1"
+    single_path_scenarios = [
+        scenario for scenario in payload["functional_scenarios"] if scenario.get("kind") == "single-path"
+    ]
+    assert single_path_scenarios[0]["id"] == "FS1"
+    assert single_path_scenarios[0]["path_ids"] == ["P1"]
+    assert payload["consistency_issues"] == []
 
 
 def test_web_analyze_reports_cdfd_module_consistency_warnings():
@@ -197,6 +201,9 @@ def test_web_analyze_multilevel_project():
     data = response.json()
     assert data["project"]["graph_count"] == 2
     assert data["paths"][0]["nodes"] == ["A11", "A12", "A2"]
-    assert data["functional_scenarios"][0]["path_ids"] == ["P1"]
+    single_path_scenarios = [
+        scenario for scenario in data["functional_scenarios"] if scenario.get("kind") == "single-path"
+    ]
+    assert single_path_scenarios[0]["path_ids"] == ["P1"]
     assert data["path_relations"] == []
     assert set(data["graph_svgs"]) == {"Top", "A1_detail"}

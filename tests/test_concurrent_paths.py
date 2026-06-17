@@ -52,5 +52,71 @@ def test_find_concurrent_paths_for_sync_multi_start():
     )
 
 
+def test_or_input_ports_for_duoshuru_login():
+    project = parse_project((ROOT / "examples" / "duoshuru.cdfd").read_text(encoding="utf-8"), "cdfd")
+    graph = project.entry()
+    p1 = "P1:用户登录认证"
+
+    port_groups, _ = graph.get_node_input_port_groups(p1, project.processes)
+    assert len(port_groups) == 2
+    assert {edge.data[0] for edge in port_groups[0]} == {"passWord", "userAccount"}
+    assert port_groups[1][0].data == ["token"]
+
+    assert can_activate_node(
+        graph,
+        p1,
+        {"token"},
+        project.processes,
+        activated_nodes={"user"},
+    )
+    assert can_activate_node(
+        graph,
+        p1,
+        {"passWord", "userAccount"},
+        project.processes,
+        activated_nodes={"IN_passWord", "IN_userAccount"},
+    )
+    assert not can_activate_node(
+        graph,
+        p1,
+        {"passWord"},
+        project.processes,
+        activated_nodes={"IN_passWord"},
+    )
+    assert not can_activate_node(
+        graph,
+        p1,
+        {"token"},
+        project.processes,
+        activated_nodes=set(),
+    )
+
+    from cdfd.multilevel import find_project_paths
+
+    paths = find_project_paths(project, PathFindingOptions(max_paths=50))
+    login_paths = [path for path in paths if p1 in path.nodes]
+    assert ["token"] in [sorted({item for item in path.data if item in {"token", "passWord", "userAccount"}}) for path in login_paths]
+    assert ["passWord", "userAccount"] in [
+        sorted({item for item in path.data if item in {"token", "passWord", "userAccount"}})
+        for path in login_paths
+    ]
+    assert all(
+        "passWord" not in path.data or "userAccount" in path.data or "token" in path.data
+        for path in login_paths
+    )
+
+
+def test_sofl_late_auxiliary_inputs_do_not_start_paths():
+    from cdfd.multilevel import find_project_paths
+
+    project = parse_project((ROOT / "examples" / "duoshuru.cdfd").read_text(encoding="utf-8"), "cdfd")
+
+    paths = find_project_paths(project, PathFindingOptions(max_paths=50))
+    path_starts = {path.nodes[0] for path in paths}
+
+    assert "D3:testSample_db" not in path_starts
+    assert "IN_submissionRequest" not in path_starts
+
+
 def _example_project(example_name: str):
     return parse_project((ROOT / "examples" / example_name).read_text(encoding="utf-8"), "json")

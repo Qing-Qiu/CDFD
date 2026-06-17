@@ -173,11 +173,20 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         f'<rect width="{width}" height="{height}" fill="url(#sofl-grid)" />',
     ]
 
+    for node_id, node in graph.nodes.items():
+        if _should_skip_rendered_node(layout, node):
+            continue
+        if not _draw_node_before_edges(node):
+            continue
+        x, y = positions[node_id]
+        width, height = sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))
+        parts.extend(_render_sofl_node(graph, node_id, node, x, y, width, height))
+
     for edge_index, edge in enumerate(graph.edges, start=1):
         if edge.source not in positions or edge.target not in positions:
             continue
         x1, y1, x2, y2 = _edge_endpoints(edge, layout, edge_offsets.get(edge.id, 0))
-        label = _edge_label(edge)
+        label = _edge_label(graph, edge)
         edge_class = "control-flow" if edge.kind == "control" else "data-flow"
         dash = ' stroke-dasharray="1 5" stroke-linecap="round"' if edge.kind == "control" else ""
         if layout.source_layout:
@@ -201,6 +210,10 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
             )
 
     for node_id, node in graph.nodes.items():
+        if _should_skip_rendered_node(layout, node):
+            continue
+        if _draw_node_before_edges(node):
+            continue
         x, y = positions[node_id]
         width, height = sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))
         parts.extend(_render_sofl_node(graph, node_id, node, x, y, width, height))
@@ -225,7 +238,7 @@ def _render_sofl_node(graph: CDFDGraph, node_id: str, node, x: int, y: int, widt
         bottom = y + height - inset
         left = x + inset
         right = x + width - inset
-        return [
+        parts = [
             f'<g class="sofl-node sofl-process" data-node-shape="process">',
             f'<rect class="sofl-process-boundary" {common} x="{x}" y="{y}" width="{width}" height="{height}" {type_attr} '
             f'fill="{fill}" stroke="{stroke}" />',
@@ -233,9 +246,31 @@ def _render_sofl_node(graph: CDFDGraph, node_id: str, node, x: int, y: int, widt
             f'<line class="sofl-process-band" x1="{x}" y1="{bottom}" x2="{x + width}" y2="{bottom}" stroke="{stroke}" />',
             f'<line class="sofl-process-port-rail" x1="{left}" y1="{top}" x2="{left}" y2="{bottom}" stroke="{stroke}" />',
             f'<line class="sofl-process-port-rail" x1="{right}" y1="{top}" x2="{right}" y2="{bottom}" stroke="{stroke}" />',
-            text,
-            "</g>",
         ]
+        parts.extend(
+            _process_port_dividers(
+                x,
+                left,
+                top,
+                bottom,
+                _sofl_process_port_count(node, "inputPorts"),
+                "input",
+                stroke,
+            )
+        )
+        parts.extend(
+            _process_port_dividers(
+                right,
+                x + width,
+                top,
+                bottom,
+                _sofl_process_port_count(node, "outputPorts"),
+                "output",
+                stroke,
+            )
+        )
+        parts.extend([text, "</g>"])
+        return parts
 
     if node_type in {"data", "data_store"}:
         divider = max(18, min(30, int(width * 0.2)))
@@ -369,6 +404,34 @@ def _svg_text(
         f'<text x="{center_x:.1f}" y="{text_y:.1f}" text-anchor="middle" font-size="{font_size}" '
         f'font-family="Arial, sans-serif" fill="#111827">{escaped_label}</text>'
     )
+
+
+def _process_port_dividers(
+    x1: int,
+    x2: int,
+    top: int,
+    bottom: int,
+    port_count: int,
+    role: str,
+    stroke: str,
+) -> list[str]:
+    if port_count <= 1 or bottom <= top:
+        return []
+    height = bottom - top
+    return [
+        f'<line class="sofl-process-{role}-port-divider" x1="{x1}" y1="{top + height * index / port_count:.1f}" '
+        f'x2="{x2}" y2="{top + height * index / port_count:.1f}" stroke="{stroke}" />'
+        for index in range(1, port_count)
+    ]
+
+
+def _sofl_process_port_count(node, attribute_name: str) -> int:
+    attributes = node.metadata.get("attributes", {})
+    value = attributes.get(attribute_name) if isinstance(attributes, dict) else None
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return 1
 
 
 def _sofl_data_store_number(node) -> str:
@@ -696,8 +759,10 @@ def _node_layout(node) -> tuple[int, int, int, int] | None:
     if x is None or y is None:
         return None
     default_width, default_height = _default_node_size(node.type)
-    width = max(MIN_NODE_WIDTH, int(_optional_number(raw_layout.get("width")) or default_width))
-    height = max(MIN_NODE_HEIGHT, int(_optional_number(raw_layout.get("height")) or default_height))
+    raw_width = _optional_number(raw_layout.get("width"))
+    raw_height = _optional_number(raw_layout.get("height"))
+    width = int(raw_width) if raw_width and raw_width > 0 else default_width
+    height = int(raw_height) if raw_height and raw_height > 0 else default_height
     return int(x), int(y), width, height
 
 
@@ -830,10 +895,40 @@ def _node_fill(graph: CDFDGraph, node_id: str, node_type: str) -> str:
     return "#f8fafc"
 
 
-def _edge_label(edge) -> str:
+def _edge_label(graph: CDFDGraph, edge) -> str:
     if edge.data:
         return ", ".join(edge.data)
-    return edge.condition or edge.label or ""
+    if edge.condition and edge.kind == "control":
+        return edge.condition
+    if edge.condition and not _edge_starts_at_sofl_condition(graph, edge):
+        return edge.condition
+    return edge.label or ""
+
+
+def _edge_starts_at_sofl_condition(graph: CDFDGraph, edge) -> bool:
+    source = graph.nodes.get(edge.source)
+    if source is None:
+        return False
+    return (
+        source.type.lower().endswith("_condition")
+        and edge.metadata.get("source_format") == "sofl-cdfd"
+    )
+
+
+def _is_inferred_sofl_external(node) -> bool:
+    return (
+        node.type == "external"
+        and node.metadata.get("source_format") == "sofl-cdfd"
+        and node.metadata.get("inferred_from") == "outside-endpoint"
+    )
+
+
+def _should_skip_rendered_node(layout: LayoutContext, node) -> bool:
+    return layout.source_layout and _is_inferred_sofl_external(node)
+
+
+def _draw_node_before_edges(node) -> bool:
+    return node.type.lower() in {"separating", "merging", "connecting", "broadcasting"}
 
 
 def _path_route(path: PathResult) -> str:

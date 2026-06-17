@@ -195,6 +195,31 @@ def test_render_svg_uses_sofl_node_symbols():
     assert '<rect class="sofl-process-boundary"' in svg
 
 
+def test_render_svg_draws_sofl_process_port_dividers_from_xml_counts():
+    project = parse_project(
+        """
+        <CDFD module="ports">
+          <componentList>
+            <process name="P" inputPorts="2" outputPorts="3" x="10" y="20" width="120" height="80" shapeIndex="0" />
+            <process name="Q" inputPorts="1" outputPorts="1" x="200" y="20" width="120" height="80" shapeIndex="1" />
+          </componentList>
+          <connectionList>
+            <activeDataFlow name="x" fromX="130" fromY="60" toX="200" toY="60">
+              <from belongToName="P" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+              <to belongToName="Q" belongToType="Process" belongToConnector="0" shapeIndex="1" />
+            </activeDataFlow>
+          </connectionList>
+        </CDFD>
+        """,
+        "cdfd",
+    )
+
+    svg = render_svg(project.entry())
+
+    assert svg.count('class="sofl-process-input-port-divider"') == 1
+    assert svg.count('class="sofl-process-output-port-divider"') == 2
+
+
 def test_render_svg_places_control_state_near_target():
     graph = parse_cdfd(
         """
@@ -240,6 +265,65 @@ def test_render_svg_uses_sofl_saved_component_layout():
     assert 'class="control-flow" data-edge-id="control_data_flow_1" d="M232,296 L375,294"' in svg
     assert 'class="control-flow" data-edge-id="control_data_flow_2" d="M235,340 L375,336"' in svg
     assert "#b45309" not in svg
+
+
+def test_render_svg_hides_inferred_sofl_external_endpoint_nodes():
+    project = parse_project((ROOT / "examples" / "duoshuru.cdfd").read_text(encoding="utf-8"), "cdfd")
+
+    svg = render_svg(project.entry())
+
+    assert 'data-node-id="IN_userAccount"' not in svg
+    assert 'data-node-id="IN_passWord"' not in svg
+    assert 'data-node-id="IN_submissionRequest"' not in svg
+    assert "userAccount" in svg
+    assert "passWord" in svg
+    assert "submissionRequest" in svg
+    assert svg.count("C1:") == 1
+
+
+def test_render_svg_preserves_compact_sofl_symbol_sizes():
+    project = parse_project((ROOT / "examples" / "duoshuru.cdfd").read_text(encoding="utf-8"), "cdfd")
+
+    svg = render_svg(project.entry())
+
+    assert 'points="1415,246 1440,246 1452,236 1452,286 1440,276 1415,276"' in svg
+    assert 'data-edge-id="active_data_flow_14" d="M1452,261 L1524,142"' in svg
+
+
+def test_render_svg_draws_sofl_merging_before_edges():
+    project = parse_project(
+        """
+        <CDFD module="merge_demo">
+          <componentList>
+            <process name="A" inputPorts="1" outputPorts="1" x="10" y="20" width="100" height="50" shapeIndex="0" />
+            <process name="B" inputPorts="1" outputPorts="1" x="10" y="100" width="100" height="50" shapeIndex="1" />
+            <merging x="160" y="55" width="37" height="50" shapeIndex="2" />
+            <process name="C" inputPorts="1" outputPorts="1" x="240" y="60" width="100" height="50" shapeIndex="3" />
+          </componentList>
+          <connectionList>
+            <activeDataFlow name="r1" fromX="110" fromY="45" toX="160" toY="70">
+              <from belongToName="A" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+              <to belongToName="" belongToType="Merging" belongToConnector="0" shapeIndex="2" />
+            </activeDataFlow>
+            <activeDataFlow name="r2" fromX="110" fromY="125" toX="160" toY="92">
+              <from belongToName="B" belongToType="Process" belongToConnector="0" shapeIndex="1" />
+              <to belongToName="" belongToType="Merging" belongToConnector="1" shapeIndex="2" />
+            </activeDataFlow>
+            <activeDataFlow name="" fromX="197" fromY="80" toX="240" toY="85">
+              <from belongToName="" belongToType="Merging" belongToConnector="0" shapeIndex="2" />
+              <to belongToName="C" belongToType="Process" belongToConnector="0" shapeIndex="3" />
+            </activeDataFlow>
+          </connectionList>
+        </CDFD>
+        """,
+        "cdfd",
+    )
+
+    svg = render_svg(project.entry())
+
+    assert 'class="sofl-node sofl-merging"' in svg
+    assert 'data-node-id="merging_2"' in svg
+    assert svg.index('class="sofl-node sofl-merging"') < svg.index('data-edge-id="active_data_flow_1"')
 
 
 def _rect_position(svg: str, node_id: str) -> tuple[int, int]:

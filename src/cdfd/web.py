@@ -8,7 +8,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from cdfd.concurrent_paths import format_tree_lines
+from cdfd.concurrent_paths import (
+    build_concurrent_results_from_relations,
+    format_tree_lines,
+)
 from cdfd.consistency import inspect_project_consistency
 from cdfd.exporters import (
     concurrent_paths_to_dicts,
@@ -83,6 +86,8 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
             ),
             project=project,
         )
+        if not concurrent_paths:
+            concurrent_paths = build_concurrent_results_from_relations(paths, path_relations)
         concurrent_tree_lines = [
             format_tree_lines(item.root, title=f"Concurrent Path {index}")
             for index, item in enumerate(concurrent_paths, start=1)

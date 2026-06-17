@@ -51,26 +51,45 @@ def can_activate_node(
     node_id: str,
     available_data: set[str],
     processes: dict[str, ProcessSpec] | None = None,
+    *,
+    activated_nodes: set[str] | None = None,
 ) -> bool:
-    """Check whether accumulated data satisfies all required inputs (AND semantics)."""
-    required_inputs = graph.get_node_required_inputs(node_id, processes)
-    if required_inputs:
-        return required_inputs.issubset(available_data)
+    """Check whether a node can fire given accumulated data and upstream activation."""
+    activated = activated_nodes or set()
 
-    non_control_incoming = [
-        edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)
-    ]
-    if not non_control_incoming:
+    if processes and node_id in processes and processes[node_id].inputs:
+        return set(processes[node_id].inputs).issubset(available_data)
+
+    port_groups, datastore_edges = graph.get_node_input_port_groups(node_id, processes)
+    if not port_groups and not datastore_edges:
         return True
 
-    required_edge_data: set[str] = set()
-    for edge in non_control_incoming:
-        required_edge_data.update(edge.data)
-    if required_edge_data:
-        return required_edge_data.issubset(available_data)
+    if graph.uses_or_input_ports(node_id, processes):
+        port_ready = any(
+            _port_group_ready(group, available_data, activated) for group in port_groups
+        )
+    else:
+        port_ready = all(
+            _port_group_ready(group, available_data, activated) for group in port_groups
+        ) if port_groups else True
 
-    required_sources = {edge.source for edge in non_control_incoming}
-    return required_sources.issubset(available_data)
+    return port_ready
+
+
+def _port_group_ready(
+    edges: list[Edge],
+    available_data: set[str],
+    activated_nodes: set[str],
+) -> bool:
+    """AND semantics within one input port group."""
+    if not edges:
+        return False
+    for edge in edges:
+        if edge.data and not set(edge.data).issubset(available_data):
+            return False
+        if edge.source and edge.source not in activated_nodes:
+            return False
+    return True
 
 
 def find_paths(
@@ -96,6 +115,8 @@ def find_paths(
         data_path: list[str],
         conditions: list[str],
         preconditions: list[str],
+        available_data: set[str],
+        activated_nodes: set[str],
         depth: int,
     ) -> None:
         if current in graph.ends:
@@ -121,6 +142,20 @@ def find_paths(
                 continue
             if strategy == "simple" and edge.target in node_path:
                 continue
+
+            next_available = set(available_data)
+            next_available.update(edge.data)
+            next_activated = set(activated_nodes)
+            next_activated.add(current)
+            if _requires_activation_gate(graph, edge.target, processes) and not can_activate_node(
+                graph,
+                edge.target,
+                next_available,
+                processes,
+                activated_nodes=next_activated,
+            ):
+                continue
+
             next_conditions = _extend_unique(
                 conditions,
                 [*_edge_conditions(edge), *_incoming_control_conditions(graph, edge.target)],
@@ -136,10 +171,16 @@ def find_paths(
                 [*data_path, *edge.data],
                 next_conditions,
                 next_preconditions,
+                next_available,
+                next_activated,
                 depth + 1,
             )
 
-    for start in sorted(graph.starts or {graph.start}):
+    port_and_groups = _find_port_and_groups(graph, processes)
+    and_input_groups = _find_and_input_groups(graph, processes)
+    starts = _effective_path_starts(graph)
+
+    for start in sorted(starts):
         start_preconditions = _incoming_control_conditions(graph, start)
         dfs(
             start,
@@ -148,6 +189,94 @@ def find_paths(
             [],
             _incoming_control_conditions(graph, start),
             start_preconditions,
+            set(),
+            {start},
+            0,
+        )
+
+    launched_groups: set[frozenset[str]] = set()
+    for target_node, group_edges in port_and_groups:
+        sources = {edge.source for edge in group_edges}
+        start_sources = sources & starts
+        if len(start_sources) < 2 or start_sources != sources:
+            continue
+        group_key = frozenset(start_sources)
+        if group_key in launched_groups:
+            continue
+        available_data: set[str] = set()
+        edge_ids: list[str] = []
+        data_items: list[str] = []
+        for edge in group_edges:
+            available_data.update(edge.data)
+            edge_ids.append(edge.id)
+            data_items.extend(edge.data)
+        if not can_activate_node(
+            graph,
+            target_node,
+            available_data,
+            processes,
+            activated_nodes=set(start_sources),
+        ):
+            continue
+        launched_groups.add(group_key)
+        group_conditions: list[str] = []
+        group_preconditions: list[str] = []
+        for start in sorted(start_sources):
+            start_conditions = _incoming_control_conditions(graph, start)
+            group_conditions = _extend_unique(group_conditions, start_conditions)
+            group_preconditions = _merge_preconditions(group_preconditions, start_conditions)
+        ordered_sources = sorted(start_sources)
+        dfs(
+            target_node,
+            [*ordered_sources, target_node],
+            edge_ids,
+            data_items,
+            group_conditions,
+            group_preconditions,
+            available_data,
+            set(start_sources),
+            0,
+        )
+
+    launched_and_groups: set[frozenset[str]] = set()
+    for target_node, group_edges, start_sources in and_input_groups:
+        group_key = frozenset(start_sources)
+        if group_key in launched_and_groups:
+            continue
+        available_data = set()
+        edge_ids = []
+        data_items = []
+        for edge in group_edges:
+            if edge.source not in start_sources:
+                continue
+            available_data.update(edge.data)
+            edge_ids.append(edge.id)
+            data_items.extend(edge.data)
+        if not can_activate_node(
+            graph,
+            target_node,
+            available_data,
+            processes,
+            activated_nodes=set(start_sources),
+        ):
+            continue
+        launched_and_groups.add(group_key)
+        group_conditions = []
+        group_preconditions = []
+        for start in sorted(start_sources):
+            start_conditions = _incoming_control_conditions(graph, start)
+            group_conditions = _extend_unique(group_conditions, start_conditions)
+            group_preconditions = _merge_preconditions(group_preconditions, start_conditions)
+        ordered_sources = sorted(start_sources)
+        dfs(
+            target_node,
+            [*ordered_sources, target_node],
+            edge_ids,
+            data_items,
+            group_conditions,
+            group_preconditions,
+            available_data,
+            set(start_sources),
             0,
         )
     return sorted(paths, key=lambda path: (len(path.nodes), path.nodes, path.edges))
@@ -162,7 +291,7 @@ def find_concurrent_paths(
     options = options or PathFindingOptions()
     strategy = _normalize_strategy(options.strategy)
     processes = project.processes if project else None
-    starts = sorted(graph.starts or {graph.start})
+    starts = sorted(_effective_path_starts(graph))
     results: list[ConcurrentPathResult] = []
     visited: set[tuple] = set()
     seen_results: set[tuple] = set()
@@ -170,7 +299,7 @@ def find_concurrent_paths(
     initial_states = _initial_token_states(graph, starts, processes)
 
     def explore(state: _TokenState, depth: int) -> None:
-        if graph.ends and graph.ends <= state.activated_nodes:
+        if _is_concurrent_complete(graph, state):
             result_key = (tuple(sorted(state.edges)), frozenset(state.activated_nodes))
             if result_key not in seen_results:
                 seen_results.add(result_key)
@@ -244,6 +373,9 @@ def _initial_token_states(
     starts: list[str],
     processes: dict[str, ProcessSpec] | None,
 ) -> list[_TokenState]:
+    start_set = set(starts)
+    states: list[_TokenState] = []
+
     if _requires_sync_start(graph, processes):
         all_conditions: list[str] = []
         all_preconditions: list[str] = []
@@ -264,7 +396,6 @@ def _initial_token_states(
             )
         ]
 
-    states: list[_TokenState] = []
     for start in starts:
         start_conditions = _incoming_control_conditions(graph, start)
         states.append(
@@ -279,6 +410,36 @@ def _initial_token_states(
                 trace=(node_element(start),),
             )
         )
+
+    launched_groups: set[frozenset[str]] = set()
+    for _, group_edges in _find_port_and_groups(graph, processes):
+        sources = {edge.source for edge in group_edges}
+        start_sources = sources & start_set
+        if len(start_sources) < 2 or start_sources != sources:
+            continue
+        group_key = frozenset(start_sources)
+        if group_key in launched_groups:
+            continue
+        launched_groups.add(group_key)
+        all_conditions = []
+        all_preconditions = []
+        for start in sorted(start_sources):
+            start_conditions = _incoming_control_conditions(graph, start)
+            all_conditions = _extend_unique(all_conditions, start_conditions)
+            all_preconditions = _merge_preconditions(all_preconditions, start_conditions)
+        states.append(
+            _TokenState(
+                tokens=frozenset(start_sources),
+                available_data=frozenset(),
+                activated_nodes=frozenset(start_sources),
+                edges=(),
+                data=(),
+                conditions=tuple(all_conditions),
+                preconditions=tuple(all_preconditions),
+                trace=(parallel_element([node_element(start) for start in sorted(start_sources)]),),
+            )
+        )
+
     return states
 
 
@@ -293,9 +454,8 @@ def _requires_sync_start(
     if len(starts) <= 1:
         return False
 
-    for node_id in graph.nodes:
-        required = graph.get_node_required_inputs(node_id, processes)
-        if len(required) < 2:
+    for node_id, process in (processes or {}).items():
+        if len(process.inputs) < 2:
             continue
         incoming_sources = {
             edge.source
@@ -395,15 +555,29 @@ def _activate_ready_join_nodes(
     for node_id in sorted(graph.nodes):
         if node_id in activated:
             continue
-        if not can_activate_node(graph, node_id, available, processes):
+        if not can_activate_node(
+            graph,
+            node_id,
+            available,
+            processes,
+            activated_nodes=activated,
+        ):
             continue
         incoming = [edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)]
         if not incoming:
             continue
-        if all(edge.source in activated for edge in incoming):
-            activated.add(node_id)
-            tokens.add(node_id)
-            changed = True
+        port_groups, _ = graph.get_node_input_port_groups(node_id, processes)
+        if graph.uses_or_input_ports(node_id, processes):
+            ready = any(
+                all(edge.source in activated for edge in group) for group in port_groups
+            )
+        else:
+            ready = all(edge.source in activated for edge in incoming)
+        if not ready:
+            continue
+        activated.add(node_id)
+        tokens.add(node_id)
+        changed = True
 
     if not changed:
         return None
@@ -500,7 +674,13 @@ def _apply_edge_transition(
     next_tokens = set(state.tokens)
     next_tokens.discard(token)
 
-    target_ready = can_activate_node(graph, edge.target, available_data, processes)
+    target_ready = _edge_enables_target(
+        graph,
+        edge,
+        available_data,
+        activated,
+        processes,
+    )
     trace = list(state.trace)
     if target_ready:
         next_tokens.add(edge.target)
@@ -605,6 +785,161 @@ def _canonical_cycle_key(cycle: list[str]) -> tuple[str, ...]:
         return tuple(cycle)
     rotations = [tuple(body[index:] + body[:index]) for index in range(len(body))]
     return min(rotations)
+
+
+def _is_concurrent_complete(graph: CDFDGraph, state: _TokenState) -> bool:
+    """Complete when active tokens sit on terminal nodes, or all graph ends are reached."""
+    if not graph.ends:
+        return False
+    if state.tokens and state.tokens <= graph.ends:
+        return True
+    return graph.ends <= state.activated_nodes
+
+
+def _edge_enables_target(
+    graph: CDFDGraph,
+    edge: Edge,
+    available_data: set[str],
+    activated_nodes: set[str],
+    processes: dict[str, ProcessSpec] | None,
+) -> bool:
+    """Check whether traversing one edge may activate its target."""
+    if edge.data and not set(edge.data).issubset(available_data):
+        return False
+    if edge.source and edge.source not in activated_nodes:
+        return False
+    if _requires_concurrent_activation_gate(graph, edge.target, processes):
+        return can_activate_node(
+            graph,
+            edge.target,
+            available_data,
+            processes,
+            activated_nodes=activated_nodes,
+        )
+    return True
+
+
+def _requires_concurrent_activation_gate(
+    graph: CDFDGraph,
+    node_id: str,
+    processes: dict[str, ProcessSpec] | None,
+) -> bool:
+    if graph.uses_or_input_ports(node_id, processes):
+        return True
+    if processes and node_id in processes and processes[node_id].inputs:
+        return True
+    starts = graph.starts or {graph.start}
+    incoming = [
+        edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)
+    ]
+    if not incoming:
+        return False
+    return all(edge.source in starts for edge in incoming)
+
+
+def _requires_activation_gate(
+    graph: CDFDGraph,
+    node_id: str,
+    processes: dict[str, ProcessSpec] | None,
+) -> bool:
+    if graph.uses_or_input_ports(node_id, processes):
+        return True
+    if not processes or node_id not in processes or not processes[node_id].inputs:
+        return False
+    starts = graph.starts or {graph.start}
+    incoming = [
+        edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)
+    ]
+    if not incoming:
+        return False
+    return all(edge.source in starts for edge in incoming)
+
+
+def _find_port_and_groups(
+    graph: CDFDGraph,
+    processes: dict[str, ProcessSpec] | None,
+) -> list[tuple[str, list[Edge]]]:
+    """Find OR-process port groups that require multiple independent starts (AND within port)."""
+    groups: list[tuple[str, list[Edge]]] = []
+    for node_id in graph.nodes:
+        if not graph.uses_or_input_ports(node_id, processes):
+            continue
+        port_groups, _ = graph.get_node_input_port_groups(node_id, processes)
+        for group in port_groups:
+            if len(group) < 2:
+                continue
+            sources = {edge.source for edge in group}
+            if len(sources) >= 2:
+                groups.append((node_id, group))
+    return groups
+
+
+def _find_and_input_groups(
+    graph: CDFDGraph,
+    processes: dict[str, ProcessSpec] | None,
+) -> list[tuple[str, list[Edge], set[str]]]:
+    """Find ProcessSpec AND inputs that must arrive from multiple independent starts."""
+    if not processes:
+        return []
+
+    starts = graph.starts or {graph.start}
+    groups: list[tuple[str, list[Edge], set[str]]] = []
+    for node_id, process in processes.items():
+        if len(process.inputs) < 2:
+            continue
+        incoming = [
+            edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)
+        ]
+        start_sources = {edge.source for edge in incoming if edge.source in starts}
+        if len(start_sources) >= 2:
+            groups.append((node_id, incoming, start_sources))
+    return groups
+
+
+def _effective_path_starts(graph: CDFDGraph) -> set[str]:
+    starts = set(graph.starts or {graph.start})
+    if graph.metadata.get("source_format") != "sofl-cdfd":
+        return starts
+    if not any(not _is_sofl_support_start(graph, node_id) for node_id in starts):
+        return starts
+
+    removable = {
+        node_id
+        for node_id in starts
+        if _is_auxiliary_sofl_start(graph, node_id, starts)
+    }
+    filtered = starts - removable
+    return filtered or starts
+
+
+def _is_auxiliary_sofl_start(graph: CDFDGraph, node_id: str, starts: set[str]) -> bool:
+    if not _is_sofl_support_start(graph, node_id):
+        return False
+
+    outgoing = [
+        edge for edge in graph.outgoing_edges(node_id) if not _is_control_edge(edge)
+    ]
+    if not outgoing:
+        return False
+
+    for edge in outgoing:
+        target_incoming = [
+            incoming
+            for incoming in graph.incoming_edges(edge.target)
+            if not _is_control_edge(incoming)
+        ]
+        if any(incoming.source not in starts for incoming in target_incoming):
+            return True
+    return False
+
+
+def _is_sofl_support_start(graph: CDFDGraph, node_id: str) -> bool:
+    node = graph.nodes.get(node_id)
+    if node is None:
+        return False
+    if node.type == "data_store":
+        return True
+    return node.type == "external" and node.metadata.get("inferred_from") == "outside-endpoint"
 
 
 def _normalize_strategy(strategy: str) -> str:

@@ -218,8 +218,17 @@ def _parse_connections(root: ET.Element, components: list[Component], nodes: dic
     for index, element in enumerate(list(connection_list), start=1):
         tag = _local_name(element.tag)
         kind = _edge_kind(tag)
-        source = _resolve_endpoint(element, "from", components, by_shape, by_name, nodes, index)
         target = _resolve_endpoint(element, "to", components, by_shape, by_name, nodes, index)
+        source = _resolve_endpoint(
+            element,
+            "from",
+            components,
+            by_shape,
+            by_name,
+            nodes,
+            index,
+            target_node=nodes.get(target),
+        )
         label = _optional_str(element.attrib.get("name")) or _optional_str(element.attrib.get("type"))
         edge_id = _unique_id(f"{_camel_to_snake(tag)}_{index}", used_edge_ids)
         used_edge_ids.add(edge_id)
@@ -227,6 +236,20 @@ def _parse_connections(root: ET.Element, components: list[Component], nodes: dic
         condition = None
         if source_condition and source_condition.type.endswith("_condition"):
             condition = _optional_str(source_condition.metadata.get("condition"))
+
+        to_endpoint = element.find("./to")
+        to_meta = _endpoint_metadata(to_endpoint)
+        target_component = by_name.get(nodes[target].label) if nodes[target].label in by_name else None
+        if target_component is None:
+            target_component = next(
+                (component for component in components if component.id == target),
+                None,
+            )
+        input_port = _resolve_input_port(
+            to_meta,
+            _optional_float(element.attrib.get("toY")),
+            target_component,
+        )
 
         edges.append(
             Edge(
@@ -240,9 +263,10 @@ def _parse_connections(root: ET.Element, components: list[Component], nodes: dic
                 metadata={
                     "source_format": "sofl-cdfd",
                     "sofl_type": tag,
+                    "input_port": input_port,
                     "attributes": {key: str(value) for key, value in element.attrib.items()},
                     "from": _endpoint_metadata(element.find("./from")),
-                    "to": _endpoint_metadata(element.find("./to")),
+                    "to": to_meta,
                     "layout": {
                         "fromX": _optional_float(element.attrib.get("fromX")),
                         "fromY": _optional_float(element.attrib.get("fromY")),
@@ -266,17 +290,43 @@ def _resolve_endpoint(
     by_name: dict[str | None, Component],
     nodes: dict[str, Node],
     connection_index: int,
+    target_node: Node | None = None,
 ) -> str:
     endpoint = connection.find(f"./{role}")
-    if endpoint is not None:
-        shape_index = _optional_str(endpoint.attrib.get("shapeIndex"))
-        if shape_index and shape_index != "-1" and shape_index in by_shape:
-            return by_shape[shape_index].id
+    belong_to_type = _optional_str(endpoint.attrib.get("belongToType")) if endpoint is not None else None
 
+    if endpoint is not None:
         name = _optional_str(endpoint.attrib.get("belongToName"))
-        belong_to_type = _optional_str(endpoint.attrib.get("belongToType"))
-        if name and belong_to_type and belong_to_type.lower() != "outside" and name in by_name:
+        if name and name in by_name:
             return by_name[name].id
+
+        belong_type = _optional_str(endpoint.attrib.get("belongToType"))
+        if belong_type and belong_type.lower() not in {"outside", "processtopbottom", "processtop", "processbottom"}:
+            type_match = _component_by_sofl_type(components, belong_type)
+            if type_match is not None:
+                return type_match.id
+
+        shape_index = _optional_str(endpoint.attrib.get("shapeIndex"))
+        x = _optional_float(connection.attrib.get(f"{role}X"))
+        y = _optional_float(connection.attrib.get(f"{role}Y"))
+        if shape_index and shape_index != "-1" and shape_index in by_shape:
+            component = by_shape[shape_index]
+            if x is None or y is None or _point_near_component(component, x, y):
+                return component.id
+
+    if _is_outside_endpoint(belong_to_type) and role == "from":
+        x = _optional_float(connection.attrib.get("fromX"))
+        y = _optional_float(connection.attrib.get("fromY"))
+        inferred = _component_at_point(components, x, y)
+        if inferred is not None and inferred.node_type == "process" and _point_on_process_output_side(
+            inferred, x, y
+        ):
+            if target_node is not None and target_node.type == "process":
+                return _create_external_endpoint(connection, role, nodes, connection_index)
+            return inferred.id
+        if inferred is not None:
+            return inferred.id
+        return _create_external_endpoint(connection, role, nodes, connection_index)
 
     x = _optional_float(connection.attrib.get(f"{role}X"))
     y = _optional_float(connection.attrib.get(f"{role}Y"))
@@ -284,6 +334,20 @@ def _resolve_endpoint(
     if inferred is not None:
         return inferred.id
 
+    if _is_outside_endpoint(belong_to_type):
+        return _create_external_endpoint(connection, role, nodes, connection_index)
+
+    return _create_external_endpoint(connection, role, nodes, connection_index)
+
+
+def _create_external_endpoint(
+    connection: ET.Element,
+    role: str,
+    nodes: dict[str, Node],
+    connection_index: int,
+) -> str:
+    x = _optional_float(connection.attrib.get(f"{role}X"))
+    y = _optional_float(connection.attrib.get(f"{role}Y"))
     label = _optional_str(connection.attrib.get("name"))
     prefix = "IN" if role == "from" else "OUT"
     external_id = _unique_id(f"{prefix}_{label or connection_index}", set(nodes))
@@ -301,18 +365,6 @@ def _resolve_endpoint(
         },
     )
     return external_id
-
-
-def _external_endpoint_layout(x: float | None, y: float | None, role: str) -> dict[str, float] | None:
-    if x is None or y is None:
-        return None
-    box_x = x - EXTERNAL_WIDTH if role == "from" else x
-    return {
-        "x": box_x,
-        "y": y - EXTERNAL_HEIGHT / 2,
-        "width": EXTERNAL_WIDTH,
-        "height": EXTERNAL_HEIGHT,
-    }
 
 
 def _component_at_point(components: list[Component], x: float | None, y: float | None) -> Component | None:
@@ -347,6 +399,63 @@ def _component_at_point(components: list[Component], x: float | None, y: float |
     candidates.sort(key=lambda item: (item[0], item[1].id))
     if candidates[0][0] <= COORDINATE_TOLERANCE:
         return candidates[0][1]
+    return None
+
+
+def _point_on_process_output_side(component: Component, x: float, y: float) -> bool:
+    if None in (component.x, component.y, component.width, component.height):
+        return False
+    assert component.x is not None and component.y is not None
+    assert component.width is not None and component.height is not None
+    right = component.x + component.width
+    vertical_on_box = component.y - COORDINATE_TOLERANCE <= y <= component.y + component.height + COORDINATE_TOLERANCE
+    return vertical_on_box and x >= right - COORDINATE_TOLERANCE
+
+
+def _point_near_component(component: Component, x: float, y: float) -> bool:
+    if None in (component.x, component.y, component.width, component.height):
+        return False
+    left = component.x - COORDINATE_TOLERANCE
+    top = component.y - COORDINATE_TOLERANCE
+    right = component.x + component.width + COORDINATE_TOLERANCE
+    bottom = component.y + component.height + COORDINATE_TOLERANCE
+    assert component.x is not None and component.y is not None
+    assert component.width is not None and component.height is not None
+    return left <= x <= right and top <= y <= bottom
+
+
+def _component_by_sofl_type(components: list[Component], belong_type: str) -> Component | None:
+    normalized = belong_type.strip().lower().replace("_", "")
+    aliases = {
+        "process": {"process"},
+        "datastore": {"datastore"},
+        "singlecondition": {"singlecondition"},
+        "multiplecondition": {"multiplecondition"},
+        "binarycondition": {"binarycondition"},
+        "separating": {"separating"},
+        "merging": {"merging", "connecting"},
+        "connecting": {"merging", "connecting"},
+        "broadcasting": {"broadcasting", "broadcasing", "boradcasting"},
+        "nondeterministic": {"nondeterministic"},
+        "renaming": {"renaming"},
+    }
+    accepted = aliases.get(normalized, {normalized})
+    matches = [component for component in components if component.tag.lower() in accepted]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _external_endpoint_layout(x: float | None, y: float | None, role: str) -> dict[str, float] | None:
+    if x is None or y is None:
+        return None
+    box_x = x - EXTERNAL_WIDTH if role == "from" else x
+    return {
+        "x": box_x,
+        "y": y - EXTERNAL_HEIGHT / 2,
+        "width": EXTERNAL_WIDTH,
+        "height": EXTERNAL_HEIGHT,
+    }
     return None
 
 
@@ -441,6 +550,11 @@ def _build_graph(
 def _infer_starts(nodes: dict[str, Node], edges: list[Edge]) -> set[str]:
     incoming, outgoing = _degree_maps(nodes, edges)
     starts = {node_id for node_id in nodes if incoming[node_id] == 0 and outgoing[node_id] > 0}
+    starts = {
+        node_id
+        for node_id in starts
+        if not _is_control_only_external(node_id, nodes, edges)
+    }
     if starts:
         return starts
     raise ParseError("SOFL CDFD input must define start node(s); automatic detection found no source-only node.")
@@ -465,6 +579,16 @@ def _degree_maps(nodes: dict[str, Node], edges: list[Edge]) -> tuple[dict[str, i
     return incoming, outgoing
 
 
+def _is_control_only_external(node_id: str, nodes: dict[str, Node], edges: list[Edge]) -> bool:
+    node = nodes.get(node_id)
+    if node is None or node.type != "external":
+        return False
+    if node.metadata.get("inferred_from") != "outside-endpoint":
+        return False
+    outgoing = [edge for edge in edges if edge.source == node_id]
+    return bool(outgoing) and all(edge.kind == "control" for edge in outgoing)
+
+
 def _edge_kind(tag: str) -> str:
     normalized = tag.lower()
     if normalized == "controldataflow":
@@ -478,6 +602,53 @@ def _endpoint_metadata(endpoint: ET.Element | None) -> dict[str, str]:
     if endpoint is None:
         return {}
     return {key: str(value) for key, value in endpoint.attrib.items()}
+
+
+def _is_outside_endpoint(belong_to_type: str | None) -> bool:
+    if not belong_to_type:
+        return False
+    return belong_to_type.strip().lower().replace("_", "") == "outside"
+
+
+def _resolve_input_port(
+    to_meta: dict[str, str],
+    to_y: float | None,
+    target_component: Component | None,
+) -> int | None:
+    """Resolve the side input port index for an edge targeting a process."""
+    belong_to_type = to_meta.get("belongToType", "").lower().replace("_", "")
+    if belong_to_type in {"processtopbottom", "processtop", "processbottom"}:
+        return None
+
+    connector = to_meta.get("belongToConnector") or to_meta.get("connectorIndex")
+    if connector is not None and str(connector).strip() not in {"", "-1"}:
+        try:
+            return int(str(connector).strip())
+        except ValueError:
+            pass
+
+    if target_component is None or to_y is None:
+        return 0
+
+    input_count = _optional_int(target_component.attrs.get("inputPorts")) or 1
+    if input_count <= 1:
+        return 0
+
+    layout_y = target_component.y
+    layout_height = target_component.height
+    if layout_y is None or layout_height is None:
+        return 0
+
+    step = layout_height / (input_count + 1)
+    best_port = 0
+    best_distance = float("inf")
+    for port in range(input_count):
+        port_y = layout_y + step * (port + 1)
+        distance = abs(to_y - port_y)
+        if distance < best_distance:
+            best_distance = distance
+            best_port = port
+    return best_port
 
 
 def _local_name(tag: str) -> str:
