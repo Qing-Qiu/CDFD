@@ -7,185 +7,212 @@
 
 ## 摘要
 
-Conditional Data Flow Diagram（CDFD）适合描述以数据为中心的软件规格说明，但从 CDFD 中生成路径并不只是普通图遍历问题。一个 process 可能具有多个输入端口和输出端口，一次执行中通常只有一个端口被激活，而互不依赖的分支又可能并发执行。本文提出一个 CDFD 路径生成工具的设计：它接收完整的项目文件，将其转换为公共图模型，检查结构一致性，并生成原子线性路径与结构化并发路径。本文的主要贡献是给出一个一般性的路径定义，明确区分原子路径、并发路径和功能场景；同时提出端口感知算法，支持同一端口内输入的 AND 语义、多个端口之间的 XOR 选择、显式并行结构、汇合、process 分解以及 SOFL `.cdfd` 导入。案例分析展示了工具如何处理分叉、汇合、同步多输入、多层分解以及互斥 process 接口。
+Conditional Data Flow Diagram（CDFD）通过数据流、process、控制条件和层次化 process 分解来描述软件行为。因此，从 CDFD 生成路径并不等同于枚举普通图路径。一个 process 可能有多个输入端口和输出端口，不同端口可能互斥，同一端口内的输入可能需要同时可用，互不依赖的分支也可能并发运行。本文提出一个 CDFD 路径生成工具：它接收完整的 CDFD 项目文件，将其转换成公共图模型，检查结构合法性，生成原子路径和并发路径，并可视化图与路径信息。论文定义路径模型，说明 JSON 和 SOFL `.cdfd` 解析方法，描述合法性检查与系统功能，详细展开不同 CDFD 情况下的端口感知算法，并用代表性 CDFD 输入对工具进行案例分析。
 
 关键词：CDFD，SOFL，路径生成，并发路径，图分析，端口语义
 
-## 1. 引言
+## 1. 课题背景与意义
 
-Conditional Data Flow Diagram（CDFD）用于 SOFL 风格的规格说明中，建模数据项如何被 process 产生、消费、选择和转换。CDFD 接近有向图，但并不等同于普通图：边可以携带数据或控制条件，process 可以分解为低层 CDFD，process 的图形接口也可能包含多个输入端口和输出端口。
+Conditional Data Flow Diagram（CDFD）用于 SOFL 风格的规格说明中，描述数据项如何进入系统、如何被 process 转换、如何被存储，并最终如何离开系统。与普通有向图相比，CDFD 具有更丰富的语义。边可能表示数据流、active data flow 或控制流。节点可能是 process、data store、state node、condition node 或 SOFL connector structure。高层 process 还可能分解为低层 CDFD。
 
-因此，本项目目标可以表述为：给定任意满足文档化输入格式的 CDFD 项目，自动生成它的路径，并同时可视化 CDFD 与生成出的路径信息。输入文件必须包含工具所需的全部信息，包括 module 声明、process 规格、图层、节点、边、控制条件、分解关系以及端口级接口信息。
+本课程任务是设计一个工具：导入任意符合约定文件格式的 CDFD，并自动输出它的路径。任务要求输入文件包含工具所需的全部信息，因此生成结果不应依赖导入后的人工解释。任务也要求路径定义足够清楚，因为 CDFD 路径可能涉及并发和互斥 process 接口。
 
-在开发过程中，一个关键需求变得很清楚：路径不能只定义为节点序列。这样的定义无法描述 CDFD 中两个重要情况。第一，两条分支可能相互独立，此时应表示为并发关系，而不是两条互不相关的路径。第二，一个 process 可能有多个输入端口或输出端口。同一端口内的输入是合取关系，不同端口之间则是备选关系。因此，激活一个 process 节点并不意味着它的所有端口都被激活。
+本课题有两方面意义。第一，它把非形式化的读图活动转化为有定义的图分析问题。读者可以追问一条路径为什么合法、两条分支为什么并行、为什么某一个输入不足以激活 process，而工具可以通过显式模型规则回答。第二，它支持 CDFD 审阅和教学。对于复杂图，学生不必完全手动沿箭头推演，而可以比较导入的 CDFD、生成的原子路径、并发路径、路径关系和一致性警告。
 
-本文总结了当前工具的设计与实现。第二节总结需求；第三节定义 CDFD 模型与路径语义；第四节描述实现；第五节给出代表性案例；第六节讨论局限与未来工作。
+## 2. 方法概述
 
-### 1.1 意义
+本节定义工具使用的基本对象，并说明整体方法：输入设计、CDFD 解析、合法性检查、路径生成和系统输出。
 
-本项目的意义有两方面。从建模角度看，它澄清了在存在 process 端口、控制条件和并发时，CDFD 路径到底意味着什么。从工具角度看，它提供了一种可重复的方法：解析 CDFD 项目文件，自动获得路径、关系、场景和可视化结果。这使基于 CDFD 的审阅不再完全依赖人工读图，并减少课程报告或规格检查中的歧义。
+### 2.1 CDFD 项目定义
 
-## 2. 需求与范围
-
-修订后的需求可以概括为四项任务。
-
-### 2.1 完整的 CDFD 输入格式
-
-主要交换格式是 JSON。一个 JSON 项目包含 `module`、`processes` 和 `graphs`。每个 graph 包含节点、边、起点、终点，以及可选的显式结构，如 `parallel`、`choice` 和 `join`。解析器也接受 SOFL 桌面工具的 `.cdfd` XML 文件，并将其映射到同一个内部模型。YAML 和 CSV 不作为 CDFD 输入，因为 YAML 只是重复 JSON 的契约，而 CSV 无法完整表达层次结构、process 端口和结构语义。
-
-### 2.2 图转换与验证
-
-工具使用 JSON Schema 验证 JSON 文件，解析 SOFL XML 的 component list 和 connection list，并构建公共的 `CDFDProject` 对象。它还会检查 process specification 与图中数据流之间的一致性，包括未声明数据、缺失 process specification、断连的数据存储，以及无效的分解引用。
-
-### 2.3 带并行性的路径定义
-
-生成器必须输出原子路径，同时也要表达并发。原子路径适合 source-to-sink 检查。当 CDFD 包含 fork/join 结构或同步多输入激活时，需要并发路径。Functional scenario 被视为基于路径和 process specification 构建出的更高层分析结果，而不是路径的替代品。
-
-### 2.4 可视化
-
-Web 界面聚焦于图和路径信息。它展示 SOFL 风格的 process 框、data store、condition 节点、实线数据流箭头、虚线控制流箭头、生成路径、路径关系、并发路径符号，以及交互式高亮。
-
-## 3. 形式化模型
-
-### 3.1 CDFD 项目
-
-一个 CDFD 项目被建模为：
+**定义 1（CDFD project）。**
+一个 CDFD project 是元组：
 
 ```text
 P = (M, S, G, g0)
 ```
 
-其中，`M` 是 module 声明，`S` 是 process specification 集合，`G` 是命名图层集合，`g0` 是入口图。一个图被表示为：
+其中，`M` 是 module 信息，`S` 是 process specification 集合，`G` 是命名 CDFD 图集合，`g0 in G` 是入口图。
+
+**定义 2（CDFD graph）。**
+一个 CDFD graph 是元组：
 
 ```text
 G = (V, E, Vs, Vt, R)
 ```
 
-其中，`V` 是节点集合，`E` 是有向边集合，`Vs` 是源节点集合，`Vt` 是汇节点集合，`R` 是显式结构集合。
+其中，`V` 是节点集合，`E` 是有向边集合，`Vs` 是源节点集合，`Vt` 是汇节点集合，`R` 是显式结构集合，例如 parallel、fork、choice、join、merge 和 process decomposition hint。
 
-每条边 `e in E` 都有源点 `src(e)`、目标点 `dst(e)`、类型 `kind(e)` 和数据标签集合 `data(e)`。数据流和 active-flow 边可以被路径遍历。控制流边不是路径段，而是成为路径条件。
+**定义 3（edge）。**
+一条边 `e in E` 具有源点 `src(e)`、目标点 `dst(e)`、类型 `kind(e)`、数据标签集合 `data(e)` 和可选条件 `cond(e)`。数据流和 active-flow 边可以被路径遍历。控制流边不是路径段，而是被收集为相关 process 的路径条件。
 
-### 3.2 Process 端口
+### 2.2 输入文件设计
 
-一个 process specification 被建模为：
+标准项目格式是 `cdfd-json-v1`。它包含：
 
-```text
-Sp = (Ip, Op, Pi_in_p, Pi_out_p, pre_p, post_p)
-```
+- `module`：常量、类型、变量和入口行为图；
+- `processes`：process specification，包括输入/输出数据、端口、前置条件、后置条件和可选分解图名称；
+- `graphs`：图层，每个图层包含节点、边、起点、终点和显式结构；
+- `metadata`：可选布局信息或输入来源相关信息。
 
-其中，`Ip` 和 `Op` 是简化的输入/输出声明，`Pi_in_p` 是输入端口列表，`Pi_out_p` 是输出端口列表。每个端口是一组必需的数据项或边标识。
+工具也导入 SOFL 桌面工具的 `.cdfd` XML 文件。`.cdfd` 文件把一个图保存为 `componentList` 和 `connectionList`。导入器将这些 XML 元素映射到 JSON 使用的同一个内部 CDFD project 模型。因此，算法只面向一个公共模型工作，而不是面向多套互不相关的输入格式。
 
-对于输入端口 `q in Pi_in_p`，就绪谓词为：
+YAML 和 CSV 不作为 CDFD 输入格式。YAML 只是为同一 JSON 契约提供另一种语法；CSV 无法完整表示 module、process 端口、分解、控制条件和 CDFD 结构。
+
+### 2.3 路径定义
+
+**定义 4（process port）。**
+对于 process `p`，输入端口 `q_in` 是一组输入数据项或输入边；输出端口 `q_out` 是一组输出数据项或输出边。同一输入端口内使用 AND 语义。不同输入端口默认互斥，除非 CDFD 显式说明。不同输出端口默认也是备选关系；同一个被选中输出端口内的多条边可以共同产生。
+
+**定义 5（port readiness）。**
+令 `D` 为可用数据项集合，`A` 为已激活上游节点集合。process `p` 的输入端口 `q` 就绪，当且仅当分配给 `q` 的每条非控制输入边都满足数据可用且源节点已激活：
 
 ```text
 Ready(p, q, D, A) 当且仅当
-对所有 e in InEdges(p, q)，data(e) subseteq D 且 src(e) in A
+对所有 e in InEdges(p, q):
+data(e) subseteq D 且 src(e) in A
 ```
 
-其中，`D` 是可用数据集合，`A` 是已激活的上游节点集合。因此，同一端口内的输入具有 AND 语义。如果一个 process 有多个输入端口，则当某一个端口就绪时，process 即可触发：
+如果端口声明 `mode = any`，则一个输入项就绪即可。默认模式是 `all`。
+
+**定义 6（process activation）。**
+当至少一个输入端口就绪时，process `p` 可以被激活：
 
 ```text
-Fire(p, D, A) 当且仅当 存在 q in Pi_in_p，使 Ready(p, q, D, A) 成立
+Fire(p, D, A) 当且仅当
+存在 q in Pi_in_p，使 Ready(p, q, D, A) 成立
 ```
 
-这给出了端口之间的 XOR 语义。如果 process 没有显式端口列表，则 `inputs` 被视为一个 AND 组。
+如果没有显式端口，则 process 的输入列表被视为一个 AND 端口。
 
-输出端口默认也是选择关系。具有多个输出端口的 process 不会自动产生所有端口上的分支。同一个被选中输出端口上的多条边可以共同产生；而不同输出端口之间的同时分支，需要显式 `parallel` 或 `fork` 结构标记。
-
-### 3.3 路径语义
-
-原子路径是一个有向数据流轨迹：
+**定义 7（atomic path）。**
+原子路径是 source-to-sink 数据流轨迹：
 
 ```text
 pi = <v0, e1, v1, ..., en, vn>
 ```
 
-其中，`v0 in Vs`，`vn in Vt`，`src(ei)=v(i-1)`，`dst(ei)=vi`，并且每个被遍历的 process 激活都满足端口就绪规则。
+其中，`v0 in Vs`，`vn in Vt`，`src(ei)=v(i-1)`，`dst(ei)=vi`，每条 `ei` 都可遍历，并且路径中每次 process 激活都满足定义 6。
 
-并发路径是一个结构化项：
+**定义 8（concurrent path）。**
+并发路径是结构化路径项：
 
 ```text
 C ::= v | C1 ; C2 | Par(C1, ..., Ck) | Xor(C1, ..., Ck)
 ```
 
-工具使用 `->` 表示顺序组合，使用 `[A || B]` 表示并行组合，并通过路径关系中的 `XOR` 表示互斥备选。合法并发路径需要能够线性化为合法原子路径，同时保留 fork、join 和端口激活约束。
+顺序组合显示为 `->`，并行组合显示为 `[A || B]`，互斥备选通过路径关系显示为 `XOR`。合法并发路径必须具有合法的原子路径投影，并保持 fork、join 和端口激活约束。
 
-### 3.4 Functional Scenario
+### 2.4 CDFD 解析
 
-Functional scenario 是从一条或多条路径派生出的检查对象。它包含输入数据、输出数据、涉及的 process 操作、前置条件、后置条件以及收集到的控制条件。因此，路径描述结构化的数据流可达性，而 functional scenario 描述用于检查的行为上下文。
+JSON 解析器先根据 JSON Schema 验证文件，然后创建 `CDFDProject`、`CDFDGraph`、`Node`、`Edge`、`PortSpec` 和 `GraphStructure` 对象。SOFL 解析器读取 XML 组件，通过组件名和 `shapeIndex` 解析端点；当可见线实际接触组件但 XML 端点缺失时，退回到基于坐标的端点推断；并保留布局、端口数量、connector index 和边类型作为 metadata。
 
-## 4. 实现
-
-### 4.1 架构
-
-系统包含五层：
-
-1. 输入与解析：JSON Schema 验证和 SOFL `.cdfd` XML 导入。
-2. 公共模型：`CDFDProject`、`CDFDGraph`、`Node`、`Edge`、`PortSpec` 和 `GraphStructure`。
-3. 图算法：路径搜索、并发 token 搜索、环处理和多层 process 展开。
-4. 分析：路径关系、一致性警告和 functional scenario。
-5. 展示：CLI 输出、Web API、并发路径导出和 SVG 可视化。
-
-这种分层让算法独立于原始输入来源。JSON 和 `.cdfd` 输入都会在路径生成之前转换到同一个内存图模型。
-
-### 4.2 原子路径搜索
-
-原子搜索是在数据流边上的深度优先遍历。它支持两种环处理策略。默认的 `simple` 策略避免重复节点，而 `max-depth` 策略允许在需要探索环时进行有界遍历。在每个候选转换处，算法更新可用数据、已激活节点、条件和前置条件。如果目标 process 受 process 输入或端口组约束，则只有当激活谓词满足时，转换才会被接受。
-
-### 4.3 并发 Token 搜索
-
-并发搜索维护一个 token 状态：
+解析完成后，JSON 和 SOFL 输入都表示为同一图模型：
 
 ```text
-T = (K, D, A, ET, CT)
+Input -> CDFDProject -> Path Algorithms
 ```
 
-其中，`K` 是活跃 token 集合，`D` 是可用数据，`A` 是已激活节点，`ET` 是已遍历边，`CT` 是正在构建的结构化 trace。
+### 2.5 合法性与一致性检查
 
-搜索在以下四种情况下推进 token：
+工具执行两层验证。Schema validation 是硬检查：如果 JSON 结构不符合约定格式，文件会被拒绝。CDFD consistency check 是警告，因为早期 CDFD 模型可能不完整。当前检查包括：
 
-- 显式 fork/parallel 结构创建一个 `parallel` trace 元素；
-- 显式 choice 结构或互斥输出端口创建备选路径；
-- join 目标只有在所有必需输入可用后才会激活；
-- 同步多起点图以一个并行起点元素开始。
+- process 节点缺少 process specification；
+- process specification 没有被任何图节点使用；
+- 图中的数据流没有在 module 变量中声明；
+- process 输入/输出声明与图中数据流或端口不一致；
+- data store 断连；
+- decom 引用缺失图层；
+- 环结构会单独报告，而不是直接作为错误。
 
-结果是一个 `ConcurrentPathResult`，它同时包含树表示，以及节点、边、数据和条件的扁平列表。导出前，并发树会被规范化：展平嵌套的 sequential 节点、删除空分支、合并连续重复的 join 节点。这个步骤可以让导入的 SOFL 图保持可读，因为某些 connection list 可能通过多个分支 token 激活同一个 join 节点。
+### 2.6 系统功能
 
-### 4.4 输出与可视化
+当前系统提供以下用户功能：
 
-工具通过 Web API 和命令行暴露同一套分析结果。JSON 输出包含 `paths`、`concurrent_paths`、`path_relations` 和 `functional_scenarios`。Text 和 Markdown 输出包含单独的并发路径部分，而 CSV 保持为紧凑的原子路径表。SVG 渲染器为 process、data store、condition 节点和控制/数据流边使用类似 SOFL 的符号，使生成图尽量接近原始 CDFD 记法。
+- 导入标准 JSON 和 SOFL `.cdfd` 文件；
+- 自动推断或显式接受 start/end 节点；
+- 生成原子 source-to-sink 路径；
+- 生成结构化并发路径；
+- 分析 parallel、exclusive 和 joined-output 等路径关系；
+- 对原子路径执行多层 process 分解展开；
+- 渲染 SOFL 风格 SVG 图；
+- 提供 Web UI、Web API 和 CLI 输出；
+- 导出 text、JSON、CSV 和 Markdown 结果。
 
-### 4.5 SOFL 导入
+## 3. 关键技术细节
 
-SOFL `.cdfd` 文件是 XML 文件，其中 `componentList` 存储 process、data store 和 condition 组件，`connectionList` 存储 data、active data 和 control flows。导入器首先通过 `shapeIndex` 和组件名解析端点。如果 XML 把一条可见线存为 outside-to-outside，但坐标实际接触某个组件，导入器会退回到基于坐标的端点推断。Process 端口数量和边的 connector index 会保留为元数据，因此导入的 SOFL 图也可以使用同一套端口感知激活逻辑。
+本节说明模型设计，以及不同 CDFD 情况下使用的算法。
 
-### 4.6 IEEE 与 Overleaf 排版
+### 3.1 模型设计
 
-论文使用 IEEEtran conference 文档类。项目中引用了 IEEE 官方模板页面，本地 class 文件来自 CTAN IEEEtran 包，该包支持 IEEE transactions、journals 和 conferences。源文件可以用 TeX 发行版在本地编译，也可以上传到 Overleaf。在 Overleaf 中，如果平台提供 IEEE Conference Template，也可以把本文内容复制进去。
+公共模型把图事实与算法结果分开。`Node` 和 `Edge` 保存导入的 CDFD；`ProcessSpec` 和 `PortSpec` 保存 process 接口；`GraphStructure` 保存 explicit parallel、choice 等 CDFD 结构；`PathResult` 保存一条原子路径，包括节点、边 id、边源点、边目标点、边数据、输出数据、前置条件和控制条件；`ConcurrentPathResult` 保存由 `node`、`sequential` 和 `parallel` 元素组成的树，并提供用于导出的扁平摘要。
 
-## 5. 案例分析
+该设计是保守的。如果 process 有多个输出端口且没有显式 parallel/fork 结构，算法会把不同端口视为备选。如果几条输出边被分配到同一个输出端口，则它们可以由同一个被选中端口共同产生。
 
-下表总结了项目测试和 Web 界面中使用的代表性示例。
+### 3.2 原子路径算法
 
-| 示例 | 主要特性 | 结果 | 解释 |
+原子路径生成器在可遍历数据流边上执行深度优先搜索。每一步都会更新可用数据、已激活节点和收集到的条件。只有当目标 process 在当前数据和端口状态下可以激活时，候选边才被接受。
+
+生成器支持两种环处理策略。默认 `simple` 策略禁止同一路径中重复节点，因此有限节点集保证终止。`max-depth` 策略允许重复节点，但受用户给定深度限制。全局 `max_paths` 限制用于避免组合爆炸。
+
+### 3.3 并行分叉
+
+当一个节点有多条输出分支时，算法需要判断这些分支是备选还是并发。显式 `parallel`、`broadcast`、`fork` 或 `separate` 结构表示并发分支。显式 `choice`、`condition`、`select` 或 `non-determinism` 结构表示备选。不带显式结构时，来自不同输出端口的分支视为备选；来自同一个被选中输出端口且条件不冲突的分支，可以组成并发分支。
+
+### 3.4 Join 与同步多输入
+
+Join 行为由 token search 处理。一个 token 可能在所需输入尚未全部可用时到达某个 process。在这种情况下，算法记录已到达数据，但延迟激活 join 目标。只有当目标所需输入端口就绪后，该目标才会被激活。这支持两个分支都完成后，下游 process 才能运行的情况。
+
+对于同步多起点图，初始状态可以包含多个 token，例如一个外部输入 token 和一个 data-store token。生成的并发记法可以显示为：
+
+```text
+[IN || STORE] -> Process -> OUT
+```
+
+### 3.5 互斥端口
+
+多个输入端口被视为备选。例如，登录 process 可以接受 password 端口 `{userAccount, passWord}` 或 token 端口 `{token}`。只有 `passWord` 时 password 端口不能触发，因为该端口需要两个数据项；token 端口则可以独立触发。因此，同一个 process 节点也可能根据被激活端口不同产生不同合法路径。
+
+多个输出端口默认也是备选。这可以防止工具错误地把 process 的所有输出边都当作同时输出。并行输出必须通过共享的被选中输出端口或显式 CDFD parallel/fork 结构表示。
+
+### 3.6 多层 Process 分解
+
+Process specification 可以包含 `decom` 字段，指向低层图。在原子路径生成中，多层模块会用分解图路径替换该 process，并把父图边连接到子图输入和输出。当前实现支持跨多个图层的稳定原子展开。跨嵌套分解图的统一并发展开仍是限制。
+
+### 3.7 可视化与输出
+
+SVG 渲染器使用 SOFL 风格 process 框、data-store 框、condition 菱形、实线数据流箭头、虚线控制流箭头，并在可用时使用导入布局坐标。没有布局信息的 JSON 图会自动排版。Web UI 聚焦导入图、生成路径、并发路径、路径关系和一致性警告。CLI 提供同一套分析，方便可复现实验。
+
+## 4. 案例分析
+
+下表总结测试和演示中使用的代表性示例。
+
+| 输入 | 主要 CDFD 特性 | 生成结果 | 含义 |
 | --- | --- | --- | --- |
-| `cdfd_v1.json` | process A 之后 fork | 2 条原子路径；并发记法：`IN -> A -> [B || C] -> OUT_X4 -> OUT_X5` | B 和 C 是 A 之后的独立分支。 |
-| `join.json` | fork 后 join | 2 条原子路径；并发记法：`IN -> Split -> [L || R] -> Combine -> OUT` | Combine 只有在两个分支结果都可用后才触发。 |
-| `data_store.json` | 同步多输入 | 1 条原子路径；并发记法：`[IN || PROFILE_STORE] -> BuildResponse -> OUT` | 请求数据和已存储 profile 数据共同激活 process。 |
-| `multilevel.json` | process 分解 | 跨 4 个图层的 3 条展开路径 | A1、A3 和 A33 被展开为低层 CDFD；控制状态 s1 和 s2 成为路径条件。 |
-| `port_alternatives.json` | 互斥输入端口 | 2 条合法路径 | Login process 接受 password 端口 `{userAccount, passWord}` 或 token 端口 `{token}`；只有 `passWord` 不合法。 |
-| `xuexitong.cdfd` | SOFL 导入 | 4 条原子路径和一个 exclusive 关系 | 导入的 SOFL 图保留了 process、data store、condition 和 control-flow 信息。 |
+| `cdfd_v1.json` | process A 后分叉 | 两条原子路径；B 和 C 被报告为并行分支。当前记法包含 `IN -> A -> [B || C] -> OUT_X4 -> OUT_X5`。 | 工具识别出 A 后的独立分支；多个 sink 节点的终点记法仍较保守。 |
+| `join.json` | fork 后 join | 两条原子路径和一条并发路径：`IN -> Split -> [L || R] -> Combine -> OUT`。 | Combine 只有在 `l_done` 和 `r_done` 都可用后才激活。 |
+| `data_store.json` | 同步多输入 | 并发记法：`[IN || PROFILE_STORE] -> BuildResponse -> OUT`。 | 外部请求数据和已存 profile 数据都需要就绪，response process 才能运行。 |
+| `multilevel.json` | process 分解 | 跨四个图层的三条展开原子路径。 | A1、A3 和 A33 被替换为低层 CDFD；状态/控制节点 s1 和 s2 成为路径条件。 |
+| `port_alternatives.json` | 互斥输入端口 | 两条合法路径：一条通过 token 端口，一条通过 password 端口。 | password 端口需要 `userAccount` 与 `passWord`；只有 `passWord` 不能激活 Login。 |
+| `xuexitong.cdfd` | 真实 SOFL `.cdfd` 导入 | 四条原子路径和一个 exclusive 路径关系。 | 导入器保留 SOFL 图中的 process、data store、condition、control-flow 和布局信息。 |
+| `loop.json` | 含环 CDFD 结构 | simple 模式避免重复节点；max-depth 模式允许有界环探索。 | 终止性由路径策略、深度上限和路径数量上限控制。 |
 
-端口备选案例直接回应了“多个 process 接口不能被折叠成一个通用节点激活”的要求。Token 路径和 password 路径都到达同一个 process，但它们的输入假设不同，必须保持可区分。
+`join.json` 的输出展示了目标并发路径记法：
 
-## 6. 局限与未来工作
+```text
+IN -> Split -> [L || R] -> Combine -> OUT
+```
 
-当前实现区分了原子路径、并发路径、路径关系和 functional scenario。它也支持 JSON 端口和 SOFL 端口元数据，并能规范化由 token 汇合产生的常见重复 join 记法。不过仍有两个局限。
+这条结构化路径对应两个合法原子投影：一个经过 `L`，一个经过 `R`。Join process 不能由任意单个投影单独激活；它需要两个分支输出都可用。
 
-第一，多层 CDFD 展开对原子路径是稳定的，但跨嵌套分解图的统一并发展开仍未完全完成。一个被分解的 process 最终应被替换为并发子树，而不只是线性展开路径。
+## 5. 不确定点与限制
 
-第二，JSON 格式已经支持显式端口，但仍需要更多真实 `.cdfd` 案例验证 SOFL connector index 与 JSON 端口模型之间的映射。
+有两点尚未完全确定，需要明确写出。
 
-## 7. 结论
+第一，SOFL `.cdfd` 文件以工具特定方式保存 connector 和坐标信息。导入器会保留 connector index 并推断缺失端点，但仍需要更多真实 SOFL 文件验证所有端口映射情况。
 
-本文提出了一个 CDFD 路径生成器，将路径生成视为语义图问题，而不是简单的节点列表枚举。所提出的模型区分原子路径、并发路径和 functional scenario；显式表示 process 输入/输出端口；并使用端口感知激活规则处理 AND 输入、XOR 备选、join 和显式并行。实现提供 JSON 与 SOFL 导入、schema 验证、一致性检查、CLI/API 输出和 SVG 可视化。该设计为从任意 CDFD 项目文件生成路径提供了一般性基础，同时也为多层并发展开和额外 SOFL 端口映射验证留下了明确的未来工作。
+第二，多层原子路径展开已经实现，但跨嵌套分解图的统一并发展开尚未完成。后续版本应在子图含并发结构时，将被分解 process 替换为并发子树。
+
+## 6. 结论
+
+本文提出了一个 CDFD 路径生成方法和工具，覆盖任务要求：定义完整输入格式，将 CDFD 数据解析为公共图模型，检查合法性与一致性，生成原子路径和并发路径，处理 process 端口与不同算法情况，并可视化结果。核心思想是把 CDFD 路径生成视为语义图问题。原子路径捕捉 source-to-sink 数据流轨迹，并发路径捕捉独立分支与同步 join。端口感知规则避免了常见错误：把多端口 process 误当成所有接口同时激活。实现和案例分析表明，该方法能够支持 JSON 输入、SOFL `.cdfd` 导入、多层示例、端口备选、join 和含环图。

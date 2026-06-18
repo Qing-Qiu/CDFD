@@ -17,7 +17,7 @@
 3. 并行路径需要被明确表达。
    - 普通 path 是 source-to-sink 的原子数据流轨迹。
    - concurrent path 是结构化路径，可表示 `A -> [B || C] -> D`。
-   - functional scenario 是路径之上的功能场景分析，不等同于 path。
+   - 本课程任务只包含路径生成与路径可视化，不引入额外分析对象。
 
 ## 当前项目应该覆盖的任务
 
@@ -52,4 +52,4 @@
 
 1. 多层 CDFD 的并发路径展开尚未完全统一，当前线性多层展开更稳定。
 2. JSON 格式已经支持显式端口，但需要更多真实案例验证。
-3. 论文中应把 path、concurrent path、functional scenario 三个概念分开写。
+3. 论文中应把 atomic path 和 concurrent path 两个概念分开写，不展开额外分析对象。

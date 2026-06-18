@@ -18,3 +18,4 @@ build/
 *.log
 *.out
 *.synctex.gz
+paper/*.pdf

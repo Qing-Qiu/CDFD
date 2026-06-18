@@ -2,19 +2,75 @@
 
 ## 总体判断
 
-这篇稿子已经能作为课程论文初稿使用。它抓住了老师反馈的核心问题：路径定义不能只是节点序列，必须考虑并行路径、process 多输入/输出端口，以及 functional scenario 与 path 的概念区分。论文结构也比较完整，覆盖了课题背景、需求、形式化定义、系统实现、案例分析和局限性。
+重写后的论文已经更贴近当前课程任务：重点放在“导入任意符合格式的 CDFD，自动生成路径，并可视化结果”。论文现在覆盖了四个核心部分：
 
-当前最值得保留的亮点有三点：
+1. 课题背景、意义；
+2. 方法概述，包括路径定义、CDFD 解析、合法性检查和系统功能；
+3. 关键技术细节，包括模型设计和不同情况的算法；
+4. 案例分析，包括不同 CDFD 输入的输出结果。
 
-1. **问题意识明确**：开头直接指出 CDFD 路径生成不是普通图遍历，因为存在控制条件、process 分解、端口和并发。
-2. **形式化定义方向正确**：用 atomic path、concurrent path 和 functional scenario 三层概念回应老师对“数学定义”的要求。
-3. **工具实现与论文互相支撑**：论文中提到的 JSON schema、SOFL `.cdfd` 导入、端口语义、并发路径和 SVG 可视化，都已经能在代码中找到对应实现。
+最重要的修正是：论文已删除额外分析对象作为方法内容的表述，避免把任务范围扩大到课程要求之外。现在论文的核心概念集中在 atomic path、concurrent path、path relation、port semantics 和 CDFD legality checks 上。
 
-## 必须修改或补强
+## 已经做得比较好的地方
+
+### 1. 路径定义更明确
+
+论文不再说“路径就是节点列表”，而是给出：
+
+- CDFD project 定义；
+- CDFD graph 定义；
+- edge 定义；
+- process port 定义；
+- port readiness 定义；
+- process activation 定义；
+- atomic path 定义；
+- concurrent path 定义。
+
+这能回应老师说的“要变成一个数学题”，也让路径合法性有依据。
+
+### 2. 端口语义覆盖了老师反馈
+
+论文现在明确：
+
+- 一个输入端口内部是 AND；
+- 多个输入端口之间默认 XOR；
+- 多个输出端口之间默认 XOR；
+- 同一个输出端口内的多条输出边可以共同产生；
+- 不同输出端口之间的并发需要显式 parallel/fork 结构。
+
+这比“一个 process 一个 input/output”的旧模型更准确。
+
+### 3. 方法概述覆盖了任务要求
+
+第二节已经覆盖：
+
+- 输入格式；
+- CDFD 解析；
+- 路径定义；
+- 合法性与一致性检查；
+- 系统功能。
+
+这个结构和你给出的论文内容要求基本对齐。
+
+### 4. 案例分析更完整
+
+案例表覆盖了：
+
+- fork；
+- join；
+- data store 同步多输入；
+- multilevel process decomposition；
+- port alternatives；
+- SOFL `.cdfd` 导入；
+- loop。
+
+这比只展示一个示例更有说服力。
+
+## 仍建议修改的地方
 
 ### 1. 作者信息仍是占位符
 
-当前 `main.tex` 中仍是：
+当前 `paper/main.tex` 里仍然是：
 
 ```tex
 \IEEEauthorblockN{Author Name}
@@ -22,82 +78,27 @@ School or Department
 Email: author@example.com
 ```
 
-提交论文前必须改成真实姓名、学院/课程信息和邮箱。这个属于格式性硬伤，老师一眼会看到。
+提交前必须替换成真实信息。
 
-### 2. 需要补一张系统流程图或架构图
+### 2. 最好加一张系统流程图
 
-论文现在文字讲清楚了系统分层，但 IEEE 论文如果只有文字和表格会显得略“报告化”。建议加入一张图，展示：
+目前论文用文字说明架构。建议加一张图，展示：
 
 ```text
 JSON / .cdfd
   -> Parser
-  -> CDFDProject / CDFDGraph
-  -> Validation
-  -> Atomic path search
-  -> Concurrent token search
-  -> Export / Web visualization
+  -> Common CDFD Model
+  -> Validity Checks
+  -> Atomic Path Algorithm
+  -> Concurrent Path Algorithm
+  -> Export / Visualization
 ```
 
-这张图可以对应 README 中已有的架构图，放在 Implementation 开头附近。
+这会让“系统功能”和“方法流程”更直观。
 
-### 3. 案例分析还缺少真实输出片段
+### 3. 可以补一个 JSON 端口示例
 
-目前第五节用表格总结案例，信息密度不错，但证据感还可以更强。建议至少加入一个小例子的实际输出，例如：
-
-```text
-IN -> Split -> [L || R] -> Combine -> OUT
-```
-
-并解释它如何由两条 atomic path 合成 concurrent path。这样能更直接支撑“路径语义表达更清楚”这个贡献点。
-
-### 4. `cdfd_v1.json` 的多终点 notation 需要谨慎描述
-
-表格中写：
-
-```text
-IN -> A -> [B || C] -> OUT_X4 -> OUT_X5
-```
-
-这个表达读起来像 `OUT_X4` 之后又顺序到 `OUT_X5`，而实际语义更可能是两个终点输出。目前论文在 Limitations 中已经承认“多终点并行 notation 仍可能顺序化”，但案例表格里最好加一句 `current notation` 或换成更保守的描述，避免老师追问。
-
-推荐改法：
-
-```text
-2 atomic paths; parallel relation between B and C branches
-```
-
-或者：
-
-```text
-current notation: IN -> A -> [B || C] -> OUT_X4 -> OUT_X5
-```
-
-并在解释中说 terminal-output notation is still a limitation。
-
-### 5. 算法复杂度和终止性可以补一小段
-
-老师提到“定义要变成数学题”，除了定义路径，还应说明算法为什么会停。建议在 Atomic Path Search 或 Concurrent Token Search 后补充：
-
-- `simple` 策略通过禁止重复节点保证有限；
-- `max-depth` 策略通过深度上限保证有限；
-- `max_paths` 是防止组合爆炸的安全上限；
-- 并发 token 搜索用 visited state 去重。
-
-这会显得方法更严谨。
-
-## 建议增强
-
-### 1. 引言里可以更早点出课程任务
-
-现在引言比较学术，但可以加一句更直接的话：
-
-> The course task is to import an arbitrary CDFD project file following our format and automatically output its paths.
-
-这样和老师布置的任务衔接更强。
-
-### 2. JSON 格式部分可以补一个极小示例
-
-第二节说 JSON 包含 module/processes/graphs，但没有示例。可以加一个简短 JSON 片段，展示 `input_ports`：
+论文中定义了端口，但没有给 JSON 片段。建议加入一个极小例子：
 
 ```json
 {
@@ -109,33 +110,32 @@ current notation: IN -> A -> [B || C] -> OUT_X4 -> OUT_X5
 }
 ```
 
-这能更好解释端口语义。
+这样读者能马上理解端口定义如何落到文件格式。
 
-### 3. SOFL `.cdfd` 导入可以说清楚“不一定先转 JSON 文件”
+### 4. 多终点 notation 仍需要小心
 
-实现上 `.cdfd` 会被解析进同一个内存模型，不必先落盘成 JSON。论文中已经说 “maps them into the same internal model”，但可以再明确一点，避免读者误会流程是 `.cdfd -> JSON file -> algorithm`。
+论文已经在 `cdfd_v1.json` 案例里说明当前 terminal-output notation 比较保守，这是好的。后续如果要更严谨，可以把多终点输出写成并发终点或集合形式，而不是顺序式：
 
-### 4. Functional scenario 的定位可以再强调一次
+```text
+IN -> A -> [B || C] -> {OUT_X4, OUT_X5}
+```
 
-论文已经区分了 path 和 functional scenario。建议在案例分析后再补一句：
+但这需要工具输出也同步支持，当前先作为限制说明即可。
 
-> The scenario output is not counted as an additional path; it is an inspection view derived from one or more paths.
+### 5. 参考文献还偏工具型
 
-这能回应你之前强调的 “paths 和 functional scenarios 是不同概念”。
+目前引用主要是 SOFL 报告和 JSON Schema。作为课程论文可以接受，但如果老师要求更学术，可以再补 1-2 篇 CDFD/SOFL 相关论文或教材来源。
 
-## 语言与格式问题
+## 我不确定但需要你确认的点
 
-1. 英文整体清楚，句子没有明显语法硬伤。
-2. LaTeX 中有一些代码词使用反引号，例如 `module'、`.cdfd'。这在 LaTeX 中可以编译，但排版效果不如 `\texttt{module}` 稳定。正式稿建议统一改成 `\texttt{...}`。
-3. 表格比较宽，使用 `table*` 是合理的；但如果 Overleaf 编译后跨栏位置不理想，可以把案例表拆成两张小表。
-4. 本地当前未安装 TeX Live/MiKTeX，所以没有生成 PDF；源文件适合直接上传 Overleaf 编译。
+1. CDFD 的英文全称你们课程中是否固定写作 **Conditional Data Flow Diagram**。目前论文按这个写；如果老师课件写的是 **Condition Data Flow Diagram**，需要统一成课件版本。
+2. SOFL `.cdfd` 的 connector index 到输入/输出端口的映射，目前基于已有文件和工具观察实现。是否完全符合老师使用的 SOFL 工具规则，还需要更多真实 `.cdfd` 文件验证。
+3. 论文是否需要写中文还是英文。当前正式稿是英文 IEEE 风格，`main_zh.md` 是中文译稿。如果课程最终要求中文论文，可以把中文译稿转成正式排版稿。
 
-## 建议下一版优先级
+## 下一版优先级
 
 1. 替换作者信息。
 2. 加系统流程图。
-3. 加一个真实输出片段。
-4. 补算法终止性/复杂度说明。
-5. 调整 `cdfd_v1.json` 的多终点 notation 描述。
-
-完成这五点后，论文会从“能说明项目”变成“更像一篇完整的方法型课程论文”。
+3. 加一个 JSON 端口示例。
+4. 根据老师课件确认 CDFD 全称。
+5. 如有更多 `.cdfd` 文件，补充一个更贴近课堂图的案例。
