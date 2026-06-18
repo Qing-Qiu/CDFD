@@ -116,7 +116,13 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
             relation.model_dump() if hasattr(relation, "model_dump") else relation.dict()
             for relation in path_relations
         ],
-        "text": export_analysis(paths, path_relations, "text", functional_scenarios),
+        "text": export_analysis(
+            paths,
+            path_relations,
+            "text",
+            functional_scenarios,
+            concurrent_paths,
+        ),
         "svg": render_svg(graph, paths, graph_name=project.entry_graph),
         "graph_svgs": {
             name: render_svg(project_graph, paths, graph_name=name)

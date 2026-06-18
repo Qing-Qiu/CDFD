@@ -50,6 +50,7 @@ def export_analysis(
     path_relations: list[PathRelation],
     output_format: str,
     functional_scenarios: list[FunctionalScenario] | None = None,
+    concurrent_paths: list[ConcurrentPathResult] | None = None,
 ) -> str:
     fmt = output_format.lower()
     if fmt == "json":
@@ -57,14 +58,18 @@ def export_analysis(
             "paths": paths_to_dicts(paths),
             "path_relations": [model_dump(relation) for relation in path_relations],
         }
+        if concurrent_paths is not None:
+            payload["concurrent_paths"] = concurrent_paths_to_dicts(concurrent_paths)
         if functional_scenarios is not None:
             payload["functional_scenarios"] = scenarios_to_dicts(functional_scenarios)
         return json.dumps(payload, indent=2)
     if fmt == "text":
-        text = _append_text_relations(_export_text(paths), path_relations)
+        text = _append_text_concurrent_paths(_export_text(paths), concurrent_paths or [])
+        text = _append_text_relations(text, path_relations)
         return _append_text_scenarios(text, functional_scenarios or [])
     if fmt == "markdown":
-        markdown = _append_markdown_relations(_export_markdown(paths), path_relations)
+        markdown = _append_markdown_concurrent_paths(_export_markdown(paths), concurrent_paths or [])
+        markdown = _append_markdown_relations(markdown, path_relations)
         return _append_markdown_scenarios(markdown, functional_scenarios or [])
     if fmt == "csv":
         return _export_csv(paths)
@@ -512,6 +517,21 @@ def _append_text_relations(text: str, path_relations: list[PathRelation]) -> str
     return "\n".join(lines)
 
 
+def _append_text_concurrent_paths(text: str, concurrent_paths: list[ConcurrentPathResult]) -> str:
+    if not concurrent_paths:
+        return f"{text}\n\nConcurrent Paths: none detected."
+
+    lines = [text, "", "Concurrent Paths:"]
+    for index, concurrent in enumerate(concurrent_paths, start=1):
+        notation = concurrent.notation or ""
+        lines.append(f"CP{index}: {notation}")
+        if concurrent.preconditions:
+            lines.append(f"  Preconditions: {'; '.join(concurrent.preconditions)}")
+        if concurrent.conditions:
+            lines.append(f"  Conditions: {', '.join(concurrent.conditions)}")
+    return "\n".join(lines)
+
+
 def _append_markdown_relations(markdown: str, path_relations: list[PathRelation]) -> str:
     if not path_relations:
         return f"{markdown}\n\nNo path relations detected."
@@ -529,6 +549,25 @@ def _append_markdown_relations(markdown: str, path_relations: list[PathRelation]
         lines.append(
             f"| {relation.id} | {relation.kind} | {connector.join(relation.path_ids)} | {outputs} | {shared_prefix} |"
         )
+    return "\n".join(lines)
+
+
+def _append_markdown_concurrent_paths(
+    markdown: str,
+    concurrent_paths: list[ConcurrentPathResult],
+) -> str:
+    if not concurrent_paths:
+        return f"{markdown}\n\nNo concurrent paths detected."
+
+    lines = [
+        markdown,
+        "",
+        "| Concurrent Path | Notation | Conditions |",
+        "| --- | --- | --- |",
+    ]
+    for index, concurrent in enumerate(concurrent_paths, start=1):
+        conditions = ", ".join(concurrent.conditions) if concurrent.conditions else "-"
+        lines.append(f"| CP{index} | {concurrent.notation or '-'} | {conditions} |")
     return "\n".join(lines)
 
 
@@ -932,9 +971,39 @@ def _draw_node_before_edges(node) -> bool:
 
 
 def _path_route(path: PathResult) -> str:
+    if (
+        path.edge_sources
+        and path.edge_targets
+        and path.edge_data
+        and len(path.edge_sources) == len(path.edge_targets) == len(path.edge_data)
+    ):
+        return _path_route_from_segments(path)
     if len(path.data) == len(path.nodes) - 1:
         route = path.nodes[0]
         for index, data in enumerate(path.data, start=1):
             route += f" --[{data}]--> {path.nodes[index]}"
         return route
     return " -> ".join(path.nodes)
+
+
+def _path_route_from_segments(path: PathResult) -> str:
+    if not any(path.edge_data):
+        return " -> ".join(path.nodes)
+
+    route = path.edge_sources[0]
+    current = path.edge_sources[0]
+    join_targets = {
+        target
+        for target in path.edge_targets
+        if path.edge_targets.count(target) > 1
+    }
+    for source, target, data_items in zip(path.edge_sources, path.edge_targets, path.edge_data):
+        if source != current or (source in join_targets and route != source):
+            route += f" | {source}"
+        data_label = ", ".join(data_items)
+        if data_label:
+            route += f" --[{data_label}]--> {target}"
+        else:
+            route += f" -> {target}"
+        current = target
+    return route

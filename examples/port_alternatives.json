@@ -1,0 +1,52 @@
+{
+  "schema_version": "cdfd-json-v1",
+  "module": {
+    "name": "PortAlternatives",
+    "var": ["userAccount", "passWord", "token", "loginResult"],
+    "behav": "Top"
+  },
+  "processes": [
+    {
+      "id": "Login",
+      "input_ports": [
+        {
+          "id": "password",
+          "data": ["userAccount", "passWord"],
+          "label": "account password"
+        },
+        {
+          "id": "token",
+          "data": ["token"],
+          "label": "token"
+        }
+      ],
+      "output_ports": [
+        {
+          "id": "result",
+          "data": ["loginResult"]
+        }
+      ],
+      "outputs": ["loginResult"],
+      "post": "loginResult is derived from either the password port or the token port"
+    }
+  ],
+  "graphs": {
+    "Top": {
+      "starts": ["IN_USER", "IN_PASS", "IN_TOKEN"],
+      "ends": ["OUT"],
+      "nodes": [
+        { "id": "IN_USER", "type": "external", "label": "User account" },
+        { "id": "IN_PASS", "type": "external", "label": "Password" },
+        { "id": "IN_TOKEN", "type": "external", "label": "Token" },
+        { "id": "Login", "type": "process" },
+        { "id": "OUT", "type": "external", "label": "Login result" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "IN_USER", "to": "Login", "data": ["userAccount"] },
+        { "id": "e2", "from": "IN_PASS", "to": "Login", "data": ["passWord"] },
+        { "id": "e3", "from": "IN_TOKEN", "to": "Login", "data": ["token"] },
+        { "id": "e4", "from": "Login", "to": "OUT", "data": ["loginResult"] }
+      ]
+    }
+  }
+}

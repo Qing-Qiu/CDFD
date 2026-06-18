@@ -5,7 +5,7 @@ from pathlib import Path
 from cdfd.exporters import export_analysis, export_paths, render_svg
 from cdfd.models import PathRelation
 from cdfd.parsers import parse_cdfd, parse_project
-from cdfd.path_finder import find_paths
+from cdfd.path_finder import PathFindingOptions, find_concurrent_paths, find_paths
 from cdfd.path_groups import build_path_relations
 
 
@@ -83,6 +83,21 @@ def test_export_analysis_includes_path_relations_in_json():
     assert output["paths"][0]["sink"] == "O1"
     assert output["paths"][0]["nodes"] == ["IN", "A", "B", "O1"]
     assert output["path_relations"][0]["kind"] == "parallel"
+
+
+def test_export_analysis_can_include_concurrent_paths():
+    project = parse_project((ROOT / "examples" / "join.json").read_text(encoding="utf-8"), "json")
+    graph = project.entry()
+    paths = find_paths(graph, project=project)
+    relations = build_path_relations(paths, project=project, graph=graph, graph_name=project.entry_graph)
+    concurrent = find_concurrent_paths(graph, PathFindingOptions(), project=project)
+
+    output = json.loads(export_analysis(paths, relations, "json", concurrent_paths=concurrent))
+    text = export_analysis(paths, relations, "text", concurrent_paths=concurrent)
+
+    assert output["concurrent_paths"][0]["notation"] == "IN -> Split -> [ L || R ] -> Combine -> OUT"
+    assert "Concurrent Paths:" in text
+    assert "CP1: IN -> Split -> [ L || R ] -> Combine -> OUT" in text
 
 
 def test_markdown_relations_use_semantic_symbols_for_relation_kinds():

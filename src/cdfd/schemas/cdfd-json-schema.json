@@ -62,10 +62,33 @@
         "label": { "type": "string" },
         "inputs": { "$ref": "#/$defs/stringList" },
         "outputs": { "$ref": "#/$defs/stringList" },
+        "input_ports": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/port" }
+        },
+        "output_ports": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/port" }
+        },
         "pre": { "type": "string" },
         "post": { "type": "string" },
         "decom": { "type": "string" },
         "decomposition": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "port": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "data": { "$ref": "#/$defs/stringList" },
+        "edges": { "$ref": "#/$defs/stringList" },
+        "mode": {
+          "enum": ["all", "any"]
+        },
+        "label": { "type": "string" },
         "metadata": { "type": "object" }
       },
       "additionalProperties": true

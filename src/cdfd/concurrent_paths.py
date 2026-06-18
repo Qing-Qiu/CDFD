@@ -15,6 +15,49 @@ def parallel_element(branches: list[ConcurrentPathNode]) -> ConcurrentPathNode:
     return ConcurrentPathNode(kind="parallel", children=branches)
 
 
+def normalize_concurrent_tree(root: ConcurrentPathNode) -> ConcurrentPathNode:
+    """Flatten nested structure and remove presentation-level duplicates."""
+    if root.kind == "node":
+        return root
+
+    normalized_children = [normalize_concurrent_tree(child) for child in root.children]
+    normalized_children = [
+        child for child in normalized_children if not (child.kind != "node" and not child.children)
+    ]
+
+    if root.kind == "sequential":
+        flattened: list[ConcurrentPathNode] = []
+        for child in normalized_children:
+            if child.kind == "sequential":
+                flattened.extend(child.children)
+            else:
+                flattened.append(child)
+
+        collapsed: list[ConcurrentPathNode] = []
+        for child in flattened:
+            if collapsed and _same_atomic_node(collapsed[-1], child):
+                continue
+            collapsed.append(child)
+        if len(collapsed) == 1:
+            return collapsed[0]
+        return sequential_element(collapsed)
+
+    if root.kind == "parallel":
+        branches: list[ConcurrentPathNode] = []
+        seen: set[str] = set()
+        for child in normalized_children:
+            key = format_notation(child)
+            if key in seen:
+                continue
+            seen.add(key)
+            branches.append(child)
+        if len(branches) == 1:
+            return branches[0]
+        return parallel_element(branches)
+
+    return root
+
+
 def flatten_nodes(root: ConcurrentPathNode) -> list[str]:
     if root.kind == "node" and root.node_id:
         return [root.node_id]
@@ -69,7 +112,7 @@ def build_concurrent_tree_from_paths(
     else:
         children = prefix_nodes
 
-    return sequential_element(children)
+    return normalize_concurrent_tree(sequential_element(children))
 
 
 def build_concurrent_results_from_relations(
@@ -89,7 +132,7 @@ def build_concurrent_results_from_relations(
         relation_paths = [path_by_id[path_id] for path_id in relation.path_ids if path_id in path_by_id]
         if len(relation_paths) < 2:
             continue
-        root = build_concurrent_tree_from_paths(relation_paths, relation)
+        root = normalize_concurrent_tree(build_concurrent_tree_from_paths(relation_paths, relation))
         notation = format_notation(root)
         flat_nodes = flatten_nodes(root)
         results.append(
@@ -174,3 +217,13 @@ def _branch_label(branch: ConcurrentPathNode, index: int) -> str:
     if branch.children and branch.children[0].kind == "node" and branch.children[0].node_id:
         return f"{letter}: {branch.children[0].node_id}"
     return letter
+
+
+def _same_atomic_node(left: ConcurrentPathNode, right: ConcurrentPathNode) -> bool:
+    return (
+        left.kind == "node"
+        and right.kind == "node"
+        and left.node_id is not None
+        and left.node_id == right.node_id
+        and left.label == right.label
+    )

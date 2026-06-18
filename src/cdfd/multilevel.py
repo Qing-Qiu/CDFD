@@ -67,7 +67,19 @@ def _expand_base_path(
     stack: list[str],
 ) -> list[PathResult]:
     initial_conditions = _start_conditions(project, graph_name, base_path.nodes[0] if base_path.nodes else None)
-    partials = [PathResult(nodes=[], edges=[], data=[], outputs=[], preconditions=[], conditions=initial_conditions)]
+    partials = [
+        PathResult(
+            nodes=[],
+            edges=[],
+            edge_sources=[],
+            edge_targets=[],
+            edge_data=[],
+            data=[],
+            outputs=[],
+            preconditions=[],
+            conditions=initial_conditions,
+        )
+    ]
 
     for index, node_id in enumerate(base_path.nodes):
         node_segments = _node_segments(project, node_id, options, stack=stack)
@@ -80,13 +92,19 @@ def _expand_base_path(
         for partial in partials:
             for segment in node_segments:
                 edges = [*partial.edges, *segment.edges]
+                edge_sources = [*partial.edge_sources, *segment.edge_sources]
+                edge_targets = [*partial.edge_targets, *segment.edge_targets]
+                edge_data_path = [*partial.edge_data, *segment.edge_data]
                 data = [*partial.data, *segment.data]
                 preconditions = [*partial.preconditions, *segment.preconditions]
                 conditions = [*partial.conditions, *segment.conditions]
 
                 if parent_edge_id:
                     edges.append(_qualify_edge(graph_name, parent_edge_id))
-                    edge_data, _ = _edge_values(project, graph_name, parent_edge_id)
+                    edge_data, _, edge_source, edge_target = _edge_details(project, graph_name, parent_edge_id)
+                    edge_sources.append(edge_source)
+                    edge_targets.append(edge_target)
+                    edge_data_path.append(list(edge_data))
                     data.extend(edge_data)
                     conditions = _extend_unique(conditions, _edge_conditions(project, graph_name, parent_edge_id))
 
@@ -94,6 +112,9 @@ def _expand_base_path(
                     PathResult(
                         nodes=[*partial.nodes, *segment.nodes],
                         edges=edges,
+                        edge_sources=edge_sources,
+                        edge_targets=edge_targets,
+                        edge_data=edge_data_path,
                         data=data,
                         outputs=segment.outputs or base_path.outputs,
                         preconditions=preconditions,
@@ -129,12 +150,15 @@ def _node_segments(
         raise ValueError(f"Process '{node_id}' decomposes to missing graph '{process.decom}'.")
     segments = _expand_graph(project, process.decom, options, stack=stack)
     return [
-        PathResult(
-            nodes=segment.nodes,
-            edges=segment.edges,
-            data=segment.data,
-            outputs=segment.outputs,
-            preconditions=[*_process_preconditions(node_id, process), *segment.preconditions],
+            PathResult(
+                nodes=segment.nodes,
+                edges=segment.edges,
+                edge_sources=segment.edge_sources,
+                edge_targets=segment.edge_targets,
+                edge_data=segment.edge_data,
+                data=segment.data,
+                outputs=segment.outputs,
+                preconditions=[*_process_preconditions(node_id, process), *segment.preconditions],
             conditions=segment.conditions,
         )
         for segment in segments
@@ -146,10 +170,15 @@ def _qualify_edge(graph_name: str, edge_id: str) -> str:
 
 
 def _edge_values(project: CDFDProject, graph_name: str, edge_id: str) -> tuple[list[str], str | None]:
+    data, condition, _, _ = _edge_details(project, graph_name, edge_id)
+    return data, condition
+
+
+def _edge_details(project: CDFDProject, graph_name: str, edge_id: str) -> tuple[list[str], str | None, str, str]:
     for edge in project.graphs[graph_name].edges:
         if edge.id == edge_id:
-            return edge.data, edge.condition
-    return [], None
+            return edge.data, edge.condition, edge.source, edge.target
+    return [], None, "", ""
 
 
 def _edge_conditions(project: CDFDProject, graph_name: str, edge_id: str) -> list[str]:

@@ -41,7 +41,7 @@ def inspect_project_consistency(project: CDFDProject) -> list[ConsistencyIssue]:
                     graph_name,
                     node_id,
                     "inputs",
-                    set(process.inputs),
+                    _process_declared_inputs(process),
                     observed_inputs,
                 )
             )
@@ -50,7 +50,7 @@ def inspect_project_consistency(project: CDFDProject) -> list[ConsistencyIssue]:
                     graph_name,
                     node_id,
                     "outputs",
-                    set(process.outputs),
+                    _process_declared_outputs(process),
                     observed_outputs,
                 )
             )
@@ -164,6 +164,20 @@ def _outgoing_data(graph: CDFDGraph, node_id: str) -> set[str]:
         if edge.source == node_id and edge.kind != "control"
         for data_id in edge.data
     }
+
+
+def _process_declared_inputs(process) -> set[str]:
+    declared = set(process.inputs)
+    for port in process.input_ports:
+        declared.update(port.data)
+    return declared
+
+
+def _process_declared_outputs(process) -> set[str]:
+    declared = set(process.outputs)
+    for port in process.output_ports:
+        declared.update(port.data)
+    return declared
 
 
 def _metadata_io(metadata: dict[str, Any], key: str) -> dict[str, list[str]]:

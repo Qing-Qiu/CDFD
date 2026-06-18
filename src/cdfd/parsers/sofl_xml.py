@@ -239,6 +239,14 @@ def _parse_connections(root: ET.Element, components: list[Component], nodes: dic
 
         to_endpoint = element.find("./to")
         to_meta = _endpoint_metadata(to_endpoint)
+        from_endpoint = element.find("./from")
+        from_meta = _endpoint_metadata(from_endpoint)
+        source_component = by_name.get(nodes[source].label) if nodes[source].label in by_name else None
+        if source_component is None:
+            source_component = next(
+                (component for component in components if component.id == source),
+                None,
+            )
         target_component = by_name.get(nodes[target].label) if nodes[target].label in by_name else None
         if target_component is None:
             target_component = next(
@@ -249,6 +257,11 @@ def _parse_connections(root: ET.Element, components: list[Component], nodes: dic
             to_meta,
             _optional_float(element.attrib.get("toY")),
             target_component,
+        )
+        output_port = _resolve_output_port(
+            from_meta,
+            _optional_float(element.attrib.get("fromY")),
+            source_component,
         )
 
         edges.append(
@@ -264,8 +277,9 @@ def _parse_connections(root: ET.Element, components: list[Component], nodes: dic
                     "source_format": "sofl-cdfd",
                     "sofl_type": tag,
                     "input_port": input_port,
+                    "output_port": output_port,
                     "attributes": {key: str(value) for key, value in element.attrib.items()},
-                    "from": _endpoint_metadata(element.find("./from")),
+                    "from": from_meta,
                     "to": to_meta,
                     "layout": {
                         "fromX": _optional_float(element.attrib.get("fromX")),
@@ -645,6 +659,50 @@ def _resolve_input_port(
     for port in range(input_count):
         port_y = layout_y + step * (port + 1)
         distance = abs(to_y - port_y)
+        if distance < best_distance:
+            best_distance = distance
+            best_port = port
+    return best_port
+
+
+def _resolve_output_port(
+    from_meta: dict[str, str],
+    from_y: float | None,
+    source_component: Component | None,
+) -> int | None:
+    """Resolve the side output port index for an edge leaving a process."""
+    belong_to_type = from_meta.get("belongToType", "").lower().replace("_", "")
+    if belong_to_type in {"processtopbottom", "processtop", "processbottom"}:
+        return None
+
+    if source_component is None or source_component.node_type != "process":
+        return None
+
+    connector = from_meta.get("belongToConnector") or from_meta.get("connectorIndex")
+    if connector is not None and str(connector).strip() not in {"", "-1"}:
+        try:
+            return int(str(connector).strip())
+        except ValueError:
+            pass
+
+    if from_y is None:
+        return 0
+
+    output_count = _optional_int(source_component.attrs.get("outputPorts")) or 1
+    if output_count <= 1:
+        return 0
+
+    layout_y = source_component.y
+    layout_height = source_component.height
+    if layout_y is None or layout_height is None:
+        return 0
+
+    step = layout_height / (output_count + 1)
+    best_port = 0
+    best_distance = float("inf")
+    for port in range(output_count):
+        port_y = layout_y + step * (port + 1)
+        distance = abs(from_y - port_y)
         if distance < best_distance:
             best_distance = distance
             best_port = port

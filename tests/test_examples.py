@@ -31,6 +31,7 @@ def test_official_json_examples_validate_against_schema():
         "join.json",
         "data_store.json",
         "multilevel.json",
+        "port_alternatives.json",
     ]:
         document = json.loads((ROOT / "examples" / example_name).read_text(encoding="utf-8"))
         errors = sorted(validator.iter_errors(document), key=lambda error: list(error.path))

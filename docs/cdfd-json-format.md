@@ -10,15 +10,27 @@ The machine-readable schema is [cdfd-json-schema.json](cdfd-json-schema.json). J
 
 ## Path Definition
 
-A path is a directed trace from a graph input/source node to an output/sink node through CDFD data-flow edges. It is an atomic data-flow trace, not a full functional scenario. Control/state edges are not path segments; they contribute conditions to the path when they point to a process on that path.
+A path is not restricted to a plain list of graph nodes. The project uses two related layers:
+
+- `paths`: atomic source-to-sink traces through CDFD data-flow edges.
+- `concurrent_paths`: structured paths whose root is a tree built from `node`, `sequential`, and `parallel` elements.
+
+The structured notation is:
+
+```text
+C ::= node | C -> C | [ C || ... || C ] | C XOR C
+```
+
+Linear paths are projections of this structured path model. Control/state edges are not path segments; they contribute conditions to the path when they point to a process on that path.
 
 The generator reports:
 
 - `paths`: individual source-to-sink traces.
+- `concurrent_paths`: structured path trees for fork/join and synchronized multi-input cases.
 - `path_relations`: relationships between paths, such as `parallel`, `exclusive`, or `joined-output`.
 - `functional_scenarios`: inspection-oriented units derived from paths and process specifications.
 
-Parallel paths remain separate paths. The relation records that they can be considered independent or simultaneous. When the generator infers parallelism from topology, it reports the largest mutually independent path sets it can prove, so three independent branches are shown as one relation instead of three pairwise relations. Functional scenarios keep a separate layer: each scenario references one or more path ids and adds process-specification context.
+Parallel paths remain separate atomic paths, while `concurrent_paths` can also express the same behavior as one structured path. When the generator infers parallelism from topology, it reports the largest mutually independent path sets it can prove, so three independent branches are shown as one relation instead of three pairwise relations. Functional scenarios keep a separate layer: each scenario references one or more path ids and adds process-specification context.
 
 Relation display symbols:
 
@@ -80,6 +92,13 @@ Fields:
   "id": "A1",
   "inputs": ["x1"],
   "outputs": ["x2", "x3"],
+  "input_ports": [
+    { "id": "default", "data": ["x1"] }
+  ],
+  "output_ports": [
+    { "id": "x2_port", "data": ["x2"] },
+    { "id": "x3_port", "data": ["x3"] }
+  ],
   "pre": "s1 == 1",
   "post": "x2 and x3 are derived from x1",
   "decom": "A1_detail"
@@ -87,6 +106,33 @@ Fields:
 ```
 
 `decom` points to a graph that decomposes the process. When omitted, the process is treated as atomic.
+
+`inputs` and `outputs` are compact process-level declarations. Use `input_ports` and `output_ports` when the CDFD must distinguish process interfaces:
+
+- items inside one input port are combined with AND semantics;
+- multiple input ports are mutually exclusive alternatives unless a process specification explicitly models a different policy;
+- multiple output ports are choices by default;
+- edges listed in the same output port belong to one selected interface and may be produced together;
+- use a graph `structure` such as `parallel` or `fork` when branches from different output ports really fire together.
+
+An input port may set `"mode": "any"` if one data item in that port is enough to activate it. The default is `"all"`, which is the normal CDFD interpretation for a port containing multiple required data items.
+
+For example, a login process may accept either `{userAccount, passWord}` or `{token}`:
+
+```json
+{
+  "id": "Login",
+  "input_ports": [
+    { "id": "password", "data": ["userAccount", "passWord"] },
+    { "id": "token", "data": ["token"] }
+  ],
+  "output_ports": [
+    { "id": "result", "data": ["loginResult"] }
+  ]
+}
+```
+
+This means `userAccount` alone is not enough, while `token` alone can activate the process through a different port.
 
 ## Graph
 

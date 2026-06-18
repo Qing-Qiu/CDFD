@@ -54,7 +54,7 @@ class ConcurrentPathNode(BaseModel):
 
 - **`PathResult.concurrent`**：可选字段，挂载对应并发树
 - **`FunctionalScenario`**：新增 `concurrent_path`、`notation`；`kind` 可为 `concurrent`
-- **`CDFDGraph.get_node_required_inputs()`**：根据 `ProcessSpec.inputs` 或入边 `data` 推导节点 AND 型必需输入
+- **`CDFDGraph.get_node_required_inputs()`**：根据 `ProcessSpec.inputs`、`input_ports` 或入边 `data` 推导节点必需输入
 
 ---
 
@@ -70,9 +70,10 @@ def can_activate_node(graph, node_id, available_data, processes) -> bool:
 
 **判定逻辑：**
 
-1. 若存在 `ProcessSpec`，以 `inputs` 为必需数据集合
-2. 否则收集所有非 control 入边的 `data`
-3. 仅当 `available_data` 覆盖全部必需输入时返回 `True`
+1. 若存在 `input_ports`，端口内输入按 AND 检查，多个端口按 XOR 检查
+2. 否则若存在 `ProcessSpec.inputs`，以 `inputs` 为必需数据集合
+3. 否则收集所有非 control 入边的 `data`
+4. 仅当所选端口或必需输入被 `available_data` 覆盖时返回 `True`
 
 **示例（`examples/join.json`）：**
 
@@ -109,7 +110,7 @@ def can_activate_node(graph, node_id, available_data, processes) -> bool:
 
 #### 推进规则
 
-1. **并行分叉**：在显式 `parallel` / `fork` 结构处，或无边条件冲突的多出边时，同时激活所有分支
+1. **并行分叉**：在显式 `parallel` / `fork` 结构处，或同一输出端口内无边条件冲突的多出边时，同时激活所有分支
 2. **互斥选择**：显式 `choice` 结构，或边上条件互斥时，不并行分叉
 3. **汇合 Join**：边到达目标但数据未齐时，移除 Token、保留数据；全部就绪后由 `_activate_ready_join_nodes()` 激活目标
 4. **多 Token 同步步进**：`_advance_all_tokens()` 在同一步内推进所有活跃 Token
@@ -129,6 +130,7 @@ def can_activate_node(graph, node_id, available_data, processes) -> bool:
 |------|------|
 | `format_notation()` | 树 → 符号文本，如 `[ IN \|\| PROFILE_STORE ] -> BuildResponse -> OUT` |
 | `format_tree_lines()` | 树 → UI 控制台风格文本 |
+| `normalize_concurrent_tree()` | 规范化并发树，合并嵌套 sequence 并去除连续重复汇合节点 |
 | `build_concurrent_tree_from_paths()` | 从线性路径 + `PathRelation` 构建并发树 |
 | `build_concurrent_results_from_relations()` | 从并行关系批量生成 `ConcurrentPathResult` |
 | `flatten_nodes()` | 将树扁平化为节点列表 |
@@ -196,6 +198,8 @@ find_concurrent_paths() → format_tree_lines() → build_functional_scenarios()
 }
 ```
 
+命令行的 JSON / text / Markdown 输出也包含 `concurrent_paths` 或 `Concurrent Paths` 区块，与 Web API 保持同一套语义。
+
 ---
 
 ## 七、前端可视化（`templates/index.html`）
@@ -242,9 +246,15 @@ find_concurrent_paths() → format_tree_lines() → build_functional_scenarios()
 | `examples/join.json` | L、R 并行后 Join 到 Combine | `IN -> Split -> [ L \|\| R ] -> Combine -> OUT` |
 | `examples/data_store.json` | IN 与 PROFILE_STORE 同步输入 | `[ IN \|\| PROFILE_STORE ] -> BuildResponse -> OUT` |
 
-**测试文件：** `tests/test_concurrent_paths.py`
+**测试文件：**
 
-**全量测试：** 62 passed（原有 58 项 + 新增 4 项），无回归。
+- `tests/test_concurrent_paths.py`
+- `tests/test_cli.py`
+- `tests/test_scenarios.py`
+- `tests/test_exporters.py`
+- `tests/test_examples.py`
+
+**当前验证：** `python -m pytest -q` 通过，结果为 83 passed、1 个 FastAPI TestClient 兼容性 warning。
 
 ---
 
@@ -252,15 +262,21 @@ find_concurrent_paths() → format_tree_lines() → build_functional_scenarios()
 
 | 文件 | 变更类型 | 说明 |
 |------|---------|------|
-| `src/cdfd/models.py` | 修改 | 新增 `ConcurrentPathNode`、`ConcurrentPathResult` 等 |
-| `src/cdfd/path_finder.py` | 扩展 | `can_activate_node`、`find_concurrent_paths`、多 Token 搜索 |
-| `src/cdfd/concurrent_paths.py` | **新增** | 树构建、符号化、树状文本 |
+| `src/cdfd/models.py` | 修改 | 新增 `PortSpec`、`ConcurrentPathNode`、`ConcurrentPathResult` 等 |
+| `src/cdfd/path_finder.py` | 扩展 | port-aware `can_activate_node`、`find_concurrent_paths`、多 Token 搜索 |
+| `src/cdfd/concurrent_paths.py` | 新增 | 树构建、符号化、树状文本、并发树规范化 |
+| `src/cdfd/consistency.py` | 修改 | 一致性检查支持 `input_ports` / `output_ports` |
+| `src/cdfd/parsers/__init__.py` | 修改 | JSON 解析支持 process port |
 | `src/cdfd/scenarios.py` | 修改 | 并发功能场景生成 |
-| `src/cdfd/exporters.py` | 修改 | `concurrent_paths_to_dicts` |
+| `src/cdfd/exporters.py` | 修改 | `concurrent_paths_to_dicts`，导出并发路径，路径 route 使用真实边端点/数据 |
 | `src/cdfd/web.py` | 修改 | API 返回 `concurrent_paths` |
+| `src/cdfd/cli.py` | 修改 | CLI 输出并发路径 |
 | `src/cdfd/templates/index.html` | 修改 | 并发面板、树 UI、边动画 |
-| `src/cdfd/multilevel.py` | 微调 | `find_paths` 传入 `project` |
-| `tests/test_concurrent_paths.py` | **新增** | 并发路径单元测试 |
+| `src/cdfd/multilevel.py` | 修改 | 多层展开保留 edge source/target/data 元数据 |
+| `docs/cdfd-json-schema.json` | 修改 | JSON Schema 支持 `input_ports` / `output_ports` |
+| `examples/port_alternatives.json` | 新增 | 多输入端口互斥示例 |
+| `tests/test_concurrent_paths.py` | 新增 | 并发路径单元测试 |
+| `tests/test_cli.py` | 新增 | CLI JSON 并发路径输出测试 |
 
 ---
 
@@ -297,21 +313,19 @@ CDFD 图 → find_paths()            → 线性 PathResult（兼容保留）
 
 1. **多层展开（multilevel）** 的并发分析主要在入口图层；深层子图未完全与 `find_concurrent_paths` 统一
 2. **多终点并行**：如 `OUT_X4` 与 `OUT_X5` 在 notation 中可能仍为顺序表达，未完全写作 `[ OUT_X4 \|\| OUT_X5 ]`
-3. **线性 `find_paths`** 对 AND 多输入仍走 OR 语义（单源路径）；完整 AND 语义以 `find_concurrent_paths` 为准
 
 ### 可扩展方向
 
 - 多层 process 展开的并发路径统一
 - 终点并行分支的符号化完善
-- 导出 Markdown / JSON 中增加并发路径专用章节
-- CLI 增加 `--concurrent` 输出选项
+- 更多真实 SOFL `.cdfd` 文件的端口映射验证
 
 ---
 
 ## 十三、运行方式
 
 ```powershell
-cd D:\Desktop\CDFD-main\CDFD-main
+cd E:\WebProjects\CDFD
 pip install -r requirements.txt
 pip install -e .
 python -m cdfd.web

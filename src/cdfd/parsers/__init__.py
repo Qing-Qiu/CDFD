@@ -15,6 +15,7 @@ from cdfd.models import (
     GraphStructure,
     ModuleInfo,
     Node,
+    PortSpec,
     ProcessSpec,
     StructureBranch,
 )
@@ -194,6 +195,8 @@ def _parse_processes(raw_processes: Any) -> dict[str, ProcessSpec]:
                 "label",
                 "inputs",
                 "outputs",
+                "input_ports",
+                "output_ports",
                 "pre",
                 "post",
                 "decom",
@@ -206,6 +209,8 @@ def _parse_processes(raw_processes: Any) -> dict[str, ProcessSpec]:
                 label=_optional_str(raw_process.get("label")),
                 inputs=_coerce_id_list(raw_process.get("inputs"), "inputs"),
                 outputs=_coerce_id_list(raw_process.get("outputs"), "outputs"),
+                input_ports=_parse_ports(raw_process.get("input_ports"), "input_ports"),
+                output_ports=_parse_ports(raw_process.get("output_ports"), "output_ports"),
                 pre=_optional_str(raw_process.get("pre")),
                 post=_optional_str(raw_process.get("post")),
                 decom=_optional_str(raw_process.get("decom", raw_process.get("decomposition"))),
@@ -219,6 +224,40 @@ def _parse_processes(raw_processes: Any) -> dict[str, ProcessSpec]:
         processes[process.id] = process
 
     return processes
+
+
+def _parse_ports(raw_ports: Any, field_name: str) -> list[PortSpec]:
+    if raw_ports in (None, ""):
+        return []
+    if not isinstance(raw_ports, list):
+        raise ParseError(f"'{field_name}' must be a list.")
+
+    ports: list[PortSpec] = []
+    seen_ids: set[str] = set()
+    for index, raw_port in enumerate(raw_ports, start=1):
+        if isinstance(raw_port, str):
+            raw_port = {"id": raw_port}
+        if not isinstance(raw_port, dict):
+            raise ParseError(f"Each item in '{field_name}' must be a string or object.")
+
+        port_id = _optional_str(raw_port.get("id")) or f"p{index}"
+        if port_id in seen_ids:
+            raise ParseError(f"Duplicate port id '{port_id}' in '{field_name}'.")
+        seen_ids.add(port_id)
+
+        known = {"id", "data", "edges", "mode", "label", "metadata"}
+        metadata = _metadata_with_unknown_fields(raw_port, known)
+        ports.append(
+            PortSpec(
+                id=port_id,
+                data=_coerce_id_list(raw_port.get("data"), "data"),
+                edges=_coerce_id_list(raw_port.get("edges"), "edges"),
+                mode=str(raw_port.get("mode", "all")).lower().replace("_", "-") or "all",
+                label=_optional_str(raw_port.get("label")),
+                metadata=metadata,
+            )
+        )
+    return ports
 
 
 def _parse_graphs(raw_graphs: Any) -> dict[str, CDFDGraph]:

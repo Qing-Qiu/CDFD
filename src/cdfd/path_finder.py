@@ -6,6 +6,7 @@ from cdfd.concurrent_paths import (
     format_notation,
     flatten_nodes,
     node_element,
+    normalize_concurrent_tree,
     parallel_element,
     sequential_element,
 )
@@ -56,9 +57,20 @@ def can_activate_node(
 ) -> bool:
     """Check whether a node can fire given accumulated data and upstream activation."""
     activated = activated_nodes or set()
+    process = processes.get(node_id) if processes else None
 
-    if processes and node_id in processes and processes[node_id].inputs:
-        return set(processes[node_id].inputs).issubset(available_data)
+    if process and process.input_ports:
+        port_groups, _ = graph.get_node_input_port_groups(node_id, processes)
+        port_ready = [
+            _explicit_port_ready(port, group, available_data, activated)
+            for port, group in zip(process.input_ports, port_groups)
+        ]
+        if graph.uses_or_input_ports(node_id, processes):
+            return any(port_ready)
+        return all(port_ready) if port_ready else True
+
+    if process and process.inputs:
+        return set(process.inputs).issubset(available_data)
 
     port_groups, datastore_edges = graph.get_node_input_port_groups(node_id, processes)
     if not port_groups and not datastore_edges:
@@ -92,6 +104,34 @@ def _port_group_ready(
     return True
 
 
+def _explicit_port_ready(
+    port,
+    edges: list[Edge],
+    available_data: set[str],
+    activated_nodes: set[str],
+) -> bool:
+    """Check one explicit JSON port. Default mode is AND."""
+    if not edges:
+        return False
+    edge_ready = [
+        _single_edge_ready(edge, available_data, activated_nodes)
+        for edge in edges
+    ]
+    if port.mode == "any":
+        return any(edge_ready)
+    return all(edge_ready)
+
+
+def _single_edge_ready(
+    edge: Edge,
+    available_data: set[str],
+    activated_nodes: set[str],
+) -> bool:
+    if edge.data and not set(edge.data).issubset(available_data):
+        return False
+    return not edge.source or edge.source in activated_nodes
+
+
 def find_paths(
     graph: CDFDGraph,
     options: PathFindingOptions | None = None,
@@ -112,6 +152,9 @@ def find_paths(
         current: str,
         node_path: list[str],
         edge_path: list[str],
+        edge_sources: list[str],
+        edge_targets: list[str],
+        edge_data_path: list[list[str]],
         data_path: list[str],
         conditions: list[str],
         preconditions: list[str],
@@ -124,6 +167,9 @@ def find_paths(
                 PathResult(
                     nodes=list(node_path),
                     edges=list(edge_path),
+                    edge_sources=list(edge_sources),
+                    edge_targets=list(edge_targets),
+                    edge_data=[list(items) for items in edge_data_path],
                     data=list(data_path),
                     outputs=_node_outputs(graph, current),
                     preconditions=list(preconditions),
@@ -168,6 +214,9 @@ def find_paths(
                 edge.target,
                 [*node_path, edge.target],
                 [*edge_path, edge.id],
+                [*edge_sources, edge.source],
+                [*edge_targets, edge.target],
+                [*edge_data_path, list(edge.data)],
                 [*data_path, *edge.data],
                 next_conditions,
                 next_preconditions,
@@ -185,6 +234,9 @@ def find_paths(
         dfs(
             start,
             [start],
+            [],
+            [],
+            [],
             [],
             [],
             _incoming_control_conditions(graph, start),
@@ -205,10 +257,16 @@ def find_paths(
             continue
         available_data: set[str] = set()
         edge_ids: list[str] = []
+        edge_sources: list[str] = []
+        edge_targets: list[str] = []
+        edge_data_path: list[list[str]] = []
         data_items: list[str] = []
         for edge in group_edges:
             available_data.update(edge.data)
             edge_ids.append(edge.id)
+            edge_sources.append(edge.source)
+            edge_targets.append(edge.target)
+            edge_data_path.append(list(edge.data))
             data_items.extend(edge.data)
         if not can_activate_node(
             graph,
@@ -230,6 +288,9 @@ def find_paths(
             target_node,
             [*ordered_sources, target_node],
             edge_ids,
+            edge_sources,
+            edge_targets,
+            edge_data_path,
             data_items,
             group_conditions,
             group_preconditions,
@@ -245,12 +306,18 @@ def find_paths(
             continue
         available_data = set()
         edge_ids = []
+        edge_sources = []
+        edge_targets = []
+        edge_data_path = []
         data_items = []
         for edge in group_edges:
             if edge.source not in start_sources:
                 continue
             available_data.update(edge.data)
             edge_ids.append(edge.id)
+            edge_sources.append(edge.source)
+            edge_targets.append(edge.target)
+            edge_data_path.append(list(edge.data))
             data_items.extend(edge.data)
         if not can_activate_node(
             graph,
@@ -272,6 +339,9 @@ def find_paths(
             target_node,
             [*ordered_sources, target_node],
             edge_ids,
+            edge_sources,
+            edge_targets,
+            edge_data_path,
             data_items,
             group_conditions,
             group_preconditions,
@@ -279,7 +349,7 @@ def find_paths(
             set(start_sources),
             0,
         )
-    return sorted(paths, key=lambda path: (len(path.nodes), path.nodes, path.edges))
+    return _dedupe_paths(sorted(paths, key=lambda path: (len(path.nodes), path.nodes, path.edges)))
 
 
 def find_concurrent_paths(
@@ -488,7 +558,7 @@ def _expand_token_state(
         if not outgoing:
             continue
 
-        if _should_fork_parallel(graph, token, outgoing):
+        if _should_fork_parallel(graph, token, outgoing, processes):
             fork_state = _apply_parallel_fork(graph, state, token, outgoing, processes)
             if fork_state is not None:
                 next_states.append(fork_state)
@@ -726,6 +796,7 @@ def _state_to_concurrent_result(state: _TokenState, graph: CDFDGraph) -> Concurr
     else:
         root = sequential_element([node_element(node_id) for node_id in sorted(state.activated_nodes)])
 
+    root = normalize_concurrent_tree(root)
     notation = format_notation(root)
     flat_nodes = flatten_nodes(root)
     end_nodes = [node_id for node_id in flat_nodes if node_id in graph.ends]
@@ -747,17 +818,51 @@ def _state_to_concurrent_result(state: _TokenState, graph: CDFDGraph) -> Concurr
     )
 
 
-def _should_fork_parallel(graph: CDFDGraph, node_id: str, edges: list[Edge]) -> bool:
+def _should_fork_parallel(
+    graph: CDFDGraph,
+    node_id: str,
+    edges: list[Edge],
+    processes: dict[str, ProcessSpec] | None,
+) -> bool:
     if len(edges) <= 1:
         return False
     if _has_structure_kind(graph, node_id, EXCLUSIVE_KINDS, role="source"):
         return False
     if _has_structure_kind(graph, node_id, PARALLEL_KINDS, role="source"):
         return True
+    if _edges_span_alternative_output_ports(graph, node_id, edges, processes):
+        return False
     conditions = [edge.condition for edge in edges if edge.condition]
     if len(conditions) >= 2:
         return False
     return True
+
+
+def _edges_span_alternative_output_ports(
+    graph: CDFDGraph,
+    node_id: str,
+    edges: list[Edge],
+    processes: dict[str, ProcessSpec] | None,
+) -> bool:
+    if not graph.uses_or_output_ports(node_id, processes):
+        return False
+    selected = {edge.id for edge in edges}
+    explicit_ports = bool(processes and node_id in processes and processes[node_id].output_ports)
+    if not explicit_ports and any(not _has_output_port_metadata(edge) for edge in edges):
+        return True
+    groups = graph.get_node_output_port_groups(node_id, processes)
+    selected_groups = [group for group in groups if selected & {edge.id for edge in group}]
+    if not selected_groups:
+        return True
+    return len(selected_groups) > 1
+
+
+def _has_output_port_metadata(edge: Edge) -> bool:
+    if edge.metadata.get("output_port") is not None:
+        return True
+    from_meta = edge.metadata.get("from", {})
+    connector = from_meta.get("belongToConnector") or from_meta.get("connectorIndex")
+    return connector is not None and str(connector).strip() not in {"", "-1"}
 
 
 def _has_structure_kind(
@@ -885,6 +990,15 @@ def _find_and_input_groups(
     starts = graph.starts or {graph.start}
     groups: list[tuple[str, list[Edge], set[str]]] = []
     for node_id, process in processes.items():
+        if process.input_ports:
+            for port in process.input_ports:
+                if len(port.data) < 2 and len(port.edges) < 2:
+                    continue
+                incoming = _matching_port_edges(graph.incoming_edges(node_id), port)
+                start_sources = {edge.source for edge in incoming if edge.source in starts}
+                if len(start_sources) >= 2:
+                    groups.append((node_id, incoming, start_sources))
+            continue
         if len(process.inputs) < 2:
             continue
         incoming = [
@@ -894,6 +1008,41 @@ def _find_and_input_groups(
         if len(start_sources) >= 2:
             groups.append((node_id, incoming, start_sources))
     return groups
+
+
+def _matching_port_edges(edges: list[Edge], port) -> list[Edge]:
+    port_edges = set(port.edges)
+    port_data = set(port.data)
+    return [
+        edge
+        for edge in edges
+        if not _is_control_edge(edge)
+        and (
+            (port_edges and edge.id in port_edges)
+            or (port_data and bool(port_data & set(edge.data)))
+        )
+    ]
+
+
+def _dedupe_paths(paths: list[PathResult]) -> list[PathResult]:
+    unique_paths: list[PathResult] = []
+    seen: set[tuple] = set()
+    for path in paths:
+        key = (
+            tuple(path.nodes),
+            tuple(path.edges),
+            tuple(path.edge_sources),
+            tuple(path.edge_targets),
+            tuple(tuple(items) for items in path.edge_data),
+            tuple(path.data),
+            tuple(path.conditions),
+            tuple(path.preconditions),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_paths.append(path)
+    return unique_paths
 
 
 def _effective_path_starts(graph: CDFDGraph) -> set[str]:

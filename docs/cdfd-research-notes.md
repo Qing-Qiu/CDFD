@@ -1,6 +1,6 @@
 # CDFD Research Notes
 
-This project follows the SOFL meaning of CDFD: **Condition Data Flow Diagram**.
+This project follows the course naming of CDFD as **Conditional Data Flow Diagram**.
 
 The online material we used points to the same core model:
 
@@ -28,10 +28,12 @@ References:
 
    YAML and CSV are not supported as CDFD inputs. YAML adds a second syntax for the same contract, and CSV cannot preserve the complete hierarchy and structure semantics required by this project.
 
-2. Treat paths as atomic data-flow traces.
-   A path is a source-to-sink trace through CDFD data-flow edges. Control/state edges are kept as conditions on the target process, not as path segments. Parallel, choice, and join semantics are represented separately as `path_relations`.
+2. Treat path generation as two related layers.
+   An atomic path is a source-to-sink trace through CDFD data-flow edges. A concurrent path is a structured sequential/parallel tree that can express independent branches in one path object. Control/state edges are kept as conditions on the target process, not as path segments. Parallel, choice, and join semantics are also represented as `path_relations` for inspection and UI highlighting.
 
    For inferred parallelism, relations are maximal mutually independent path sets rather than only pairwise combinations. This matches the data-flow view: independent branches can be considered parallel while each atomic path remains a separate source-to-sink trace.
+
+   Process ports are part of the path semantics. Inputs inside one input port use AND semantics. Multiple input ports are treated as mutually exclusive alternatives unless the CDFD explicitly declares a parallel/fork structure. Multiple output ports are choices by default for the same reason, while several edges attached to the same selected output port can be produced together.
 
 3. Keep paths and functional scenarios separate.
    The tool now reports both layers. `paths` remain raw graph traces. `functional_scenarios` wrap those paths with process specifications, input/output data, preconditions, and postconditions so they can be used as inspection-oriented units.

@@ -234,6 +234,38 @@ def test_infer_format_accepts_sofl_cdfd_files():
     assert infer_format("model.cdfd") == "cdfd"
 
 
+def test_parse_sofl_cdfd_records_process_output_ports():
+    project = parse_project(
+        """
+        <CDFD module="ports">
+          <componentList>
+            <process name="A" inputPorts="1" outputPorts="2" x="10" y="20" width="120" height="80" shapeIndex="0" />
+            <process name="B" inputPorts="1" outputPorts="1" x="200" y="10" width="120" height="60" shapeIndex="1" />
+            <process name="C" inputPorts="1" outputPorts="1" x="200" y="110" width="120" height="60" shapeIndex="2" />
+          </componentList>
+          <connectionList>
+            <activeDataFlow name="x" fromX="130" fromY="46" toX="200" toY="40">
+              <from belongToName="A" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+              <to belongToName="B" belongToType="Process" belongToConnector="0" shapeIndex="1" />
+            </activeDataFlow>
+            <activeDataFlow name="y" fromX="130" fromY="74" toX="200" toY="140">
+              <from belongToName="A" belongToType="Process" belongToConnector="1" shapeIndex="0" />
+              <to belongToName="C" belongToType="Process" belongToConnector="0" shapeIndex="2" />
+            </activeDataFlow>
+          </connectionList>
+        </CDFD>
+        """,
+        "cdfd",
+    )
+
+    graph = project.entry()
+    by_data = {edge.data[0]: edge for edge in graph.edges}
+
+    assert project.processes["A"].metadata["output_port_count"] == 2
+    assert by_data["x"].metadata["output_port"] == 0
+    assert by_data["y"].metadata["output_port"] == 1
+
+
 @pytest.mark.parametrize("filename", ["model.yaml", "model.yml", "model.csv"])
 def test_infer_format_rejects_removed_input_extensions(filename):
     with pytest.raises(ParseError, match="Cannot infer input format"):

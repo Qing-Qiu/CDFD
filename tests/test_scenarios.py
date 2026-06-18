@@ -4,6 +4,7 @@ from cdfd.exporters import export_analysis
 from cdfd.multilevel import find_project_paths
 from cdfd.parsers import parse_project
 from cdfd.path_groups import build_path_relations
+from cdfd.path_finder import PathFindingOptions, find_concurrent_paths
 from cdfd.scenarios import build_functional_scenarios
 
 
@@ -58,6 +59,18 @@ def test_export_analysis_can_include_functional_scenarios_separately_from_paths_
     assert '"path_relations"' in output
     assert '"functional_scenarios"' in output
     assert '"FS1"' in output
+
+
+def test_concurrent_functional_scenario_ids_and_covers_atomic_paths():
+    project = _example_project("join.json")
+    paths = find_project_paths(project)
+    concurrent = find_concurrent_paths(project.entry(), PathFindingOptions(), project=project)
+
+    scenarios = build_functional_scenarios(paths, project=project, concurrent_paths=concurrent)
+
+    assert [(scenario.id, scenario.kind, scenario.path_ids) for scenario in scenarios] == [
+        ("FS1", "concurrent", ["P1", "P2"])
+    ]
 
 
 def _example_project(example_name: str):
