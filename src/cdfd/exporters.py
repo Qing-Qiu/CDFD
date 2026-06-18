@@ -107,12 +107,21 @@ def scenarios_to_dicts(scenarios: list[FunctionalScenario]) -> list[dict[str, ob
 
 def _path_to_dict(path: PathResult, index: int) -> dict[str, object]:
     raw = model_dump(path)
+    sink = path.sink or (path.nodes[-1] if path.nodes else None)
     return {
         **raw,
         "id": f"P{index}",
         "source": path.nodes[0] if path.nodes else None,
-        "sink": path.nodes[-1] if path.nodes else None,
+        "sink": sink,
         "route": _path_route(path),
+    }
+
+
+def flow_decomposition_to_dict(result) -> dict[str, object]:
+    return {
+        "paths": paths_to_dicts(result.paths),
+        "cycles": result.cycles,
+        "flow_distribution": result.flow_distribution,
     }
 
 

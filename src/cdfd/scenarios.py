@@ -97,7 +97,7 @@ def _scenario_from_path(
         id=f"FS{index}",
         path_ids=[f"P{path_index}"],
         source=path.nodes[0] if path.nodes else None,
-        sink=path.nodes[-1] if path.nodes else None,
+        sink=path.sink or (path.nodes[-1] if path.nodes else None),
         input_data=input_data,
         output_data=output_data,
         operations=operations,
@@ -158,10 +158,10 @@ def _output_data_from_operations(
     outputs: list[str],
     data: list[str],
 ) -> list[str]:
-    if operations and operations[-1].outputs:
-        return list(operations[-1].outputs)
     if outputs:
         return list(outputs)
+    if operations and operations[-1].outputs:
+        return list(operations[-1].outputs)
     return data[-1:] if data else []
 
 

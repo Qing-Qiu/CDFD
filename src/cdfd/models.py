@@ -238,6 +238,13 @@ class PathResult(BaseModel):
     preconditions: list[str] = Field(default_factory=list)
     conditions: list[str] = Field(default_factory=list)
     concurrent: ConcurrentPathNode | None = None
+    sink: str | None = None
+
+
+class FlowDecompositionResult(BaseModel):
+    paths: list[PathResult] = Field(default_factory=list)
+    cycles: list[list[str]] = Field(default_factory=list)
+    flow_distribution: dict[str, dict[str, int]] = Field(default_factory=dict)
 
 
 class PathRelation(BaseModel):

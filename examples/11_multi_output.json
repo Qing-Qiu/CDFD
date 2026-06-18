@@ -1,0 +1,71 @@
+{
+  "schema_version": "cdfd-json-v1",
+  "module": {
+    "name": "MultiOutputDemo",
+    "var": ["order", "receipt", "invoice", "receipt_pdf", "invoice_pdf"],
+    "behav": "Top",
+    "metadata": {
+      "description": "多输出验证：一进程双产出 + Fork 并行 + 双 sink"
+    }
+  },
+  "processes": [
+    {
+      "id": "SplitOrder",
+      "label": "拆分订单",
+      "inputs": ["order"],
+      "outputs": ["receipt", "invoice"],
+      "pre": "order is valid",
+      "post": "receipt and invoice are derived from order"
+    },
+    {
+      "id": "GenReceipt",
+      "label": "生成回执",
+      "inputs": ["receipt"],
+      "outputs": ["receipt_pdf"]
+    },
+    {
+      "id": "GenInvoice",
+      "label": "生成发票",
+      "inputs": ["invoice"],
+      "outputs": ["invoice_pdf"]
+    }
+  ],
+  "graphs": {
+    "Top": {
+      "start": "IN",
+      "ends": ["OUT_RECEIPT", "OUT_INVOICE"],
+      "metadata": {
+        "outputs": {
+          "OUT_RECEIPT": ["receipt_pdf"],
+          "OUT_INVOICE": ["invoice_pdf"]
+        }
+      },
+      "nodes": [
+        { "id": "IN", "type": "external", "label": "订单输入" },
+        { "id": "SplitOrder", "type": "process", "label": "拆分订单" },
+        { "id": "GenReceipt", "type": "process", "label": "生成回执" },
+        { "id": "GenInvoice", "type": "process", "label": "生成发票" },
+        { "id": "OUT_RECEIPT", "type": "external", "label": "回执出口" },
+        { "id": "OUT_INVOICE", "type": "external", "label": "发票出口" }
+      ],
+      "edges": [
+        { "id": "e1", "from": "IN", "to": "SplitOrder", "data": ["order"] },
+        { "id": "e2", "from": "SplitOrder", "to": "GenReceipt", "data": ["receipt"] },
+        { "id": "e3", "from": "SplitOrder", "to": "GenInvoice", "data": ["invoice"] },
+        { "id": "e4", "from": "GenReceipt", "to": "OUT_RECEIPT", "data": ["receipt_pdf"] },
+        { "id": "e5", "from": "GenInvoice", "to": "OUT_INVOICE", "data": ["invoice_pdf"] }
+      ],
+      "structures": [
+        {
+          "id": "par_split",
+          "kind": "parallel",
+          "source": "SplitOrder",
+          "branches": [
+            { "id": "receipt_branch", "edges": ["e2", "e4"], "data": ["receipt", "receipt_pdf"] },
+            { "id": "invoice_branch", "edges": ["e3", "e5"], "data": ["invoice", "invoice_pdf"] }
+          ]
+        }
+      ]
+    }
+  }
+}

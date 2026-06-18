@@ -7,6 +7,7 @@ from cdfd.concurrent_paths import (
     flatten_nodes,
     node_element,
     normalize_concurrent_tree,
+    normalize_parallel_end_nodes,
     parallel_element,
     sequential_element,
 )
@@ -33,6 +34,7 @@ class PathFindingOptions:
     strategy: str = "simple"
     max_depth: int = 20
     max_paths: int = 10000
+    sink_policy: str = "demand"
 
 
 @dataclass(frozen=True)
@@ -174,6 +176,7 @@ def find_paths(
                     outputs=_node_outputs(graph, current),
                     preconditions=list(preconditions),
                     conditions=list(conditions),
+                    sink=current,
                 )
             )
             if len(paths) > options.max_paths:
@@ -373,7 +376,7 @@ def find_concurrent_paths(
             result_key = (tuple(sorted(state.edges)), frozenset(state.activated_nodes))
             if result_key not in seen_results:
                 seen_results.add(result_key)
-                results.append(_state_to_concurrent_result(state, graph))
+                results.append(_state_to_concurrent_result(state, graph, processes))
             if len(results) > options.max_paths:
                 raise PathLimitExceeded(f"Concurrent path generation exceeded max_paths={options.max_paths}.")
             return
@@ -787,7 +790,11 @@ def _append_trace(
     return items
 
 
-def _state_to_concurrent_result(state: _TokenState, graph: CDFDGraph) -> ConcurrentPathResult:
+def _state_to_concurrent_result(
+    state: _TokenState,
+    graph: CDFDGraph,
+    processes: dict[str, ProcessSpec] | None = None,
+) -> ConcurrentPathResult:
     if state.trace:
         if len(state.trace) == 1:
             root = state.trace[0]
@@ -797,13 +804,19 @@ def _state_to_concurrent_result(state: _TokenState, graph: CDFDGraph) -> Concurr
         root = sequential_element([node_element(node_id) for node_id in sorted(state.activated_nodes)])
 
     root = normalize_concurrent_tree(root)
+    root = normalize_parallel_end_nodes(root, graph.ends)
     notation = format_notation(root)
     flat_nodes = flatten_nodes(root)
     end_nodes = [node_id for node_id in flat_nodes if node_id in graph.ends]
     outputs = _unique(
         output
         for node_id in end_nodes
-        for output in _node_outputs(graph, node_id)
+        for output in _collect_path_outputs(
+            graph,
+            node_id,
+            node_path=flat_nodes,
+            processes=processes,
+        )
     )
 
     return ConcurrentPathResult(
@@ -1098,6 +1111,23 @@ def _normalize_strategy(strategy: str) -> str:
     if normalized in {"max-depth", "depth"}:
         return "max-depth"
     raise ValueError("strategy must be either 'simple' or 'max-depth'.")
+
+
+def _collect_path_outputs(
+    graph: CDFDGraph,
+    sink_node: str,
+    *,
+    node_path: list[str] | None = None,
+    processes: dict[str, ProcessSpec] | None = None,
+) -> list[str]:
+    from cdfd.flow_decomposition import collect_path_outputs
+
+    return collect_path_outputs(
+        graph,
+        sink_node,
+        node_path=node_path,
+        processes=processes,
+    )
 
 
 def _node_outputs(graph: CDFDGraph, node_id: str) -> list[str]:

@@ -23,7 +23,7 @@ def test_find_concurrent_paths_for_parallel_fork():
     concurrent = find_concurrent_paths(graph, PathFindingOptions(), project=project)
 
     assert len(concurrent) == 1
-    assert concurrent[0].notation == "IN -> A -> [ B || C ] -> OUT_X4 -> OUT_X5"
+    assert concurrent[0].notation == "IN -> A -> [ B || C ] -> [ OUT_X4 || OUT_X5 ]"
     assert set(concurrent[0].nodes) == {"IN", "A", "B", "C", "OUT_X4", "OUT_X5"}
 
 

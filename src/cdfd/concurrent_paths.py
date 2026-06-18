@@ -58,6 +58,28 @@ def normalize_concurrent_tree(root: ConcurrentPathNode) -> ConcurrentPathNode:
     return root
 
 
+def normalize_parallel_end_nodes(root: ConcurrentPathNode, ends: set[str]) -> ConcurrentPathNode:
+    """Wrap trailing sequential sink nodes as a parallel group."""
+    if root.kind != "sequential" or len(root.children) < 2:
+        return root
+
+    children = list(root.children)
+    trailing: list[ConcurrentPathNode] = []
+    while children and children[-1].kind == "node" and children[-1].node_id in ends:
+        trailing.insert(0, children.pop())
+
+    if len(trailing) >= 2:
+        children.append(parallel_element(trailing))
+    elif trailing:
+        children.extend(trailing)
+
+    if not children:
+        return root
+    if len(children) == 1:
+        return children[0]
+    return sequential_element(children)
+
+
 def flatten_nodes(root: ConcurrentPathNode) -> list[str]:
     if root.kind == "node" and root.node_id:
         return [root.node_id]

@@ -16,6 +16,7 @@ from cdfd.consistency import inspect_project_consistency
 from cdfd.exporters import (
     concurrent_paths_to_dicts,
     export_analysis,
+    flow_decomposition_to_dict,
     graph_to_dict,
     paths_to_dicts,
     project_to_dict,
@@ -23,7 +24,7 @@ from cdfd.exporters import (
     scenarios_to_dicts,
 )
 from cdfd.models import model_dump
-from cdfd.multilevel import detect_project_cycles, find_project_paths
+from cdfd.multilevel import decompose_project_flow, detect_project_cycles, find_project_paths
 from cdfd.parsers import ParseError, parse_project
 from cdfd.path_groups import build_path_relations
 from cdfd.path_finder import PathFindingOptions, PathLimitExceeded, find_concurrent_paths
@@ -62,7 +63,7 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
         graph = project.entry()
         consistency_issues = inspect_project_consistency(project)
         cycles = detect_project_cycles(project)
-        paths = find_project_paths(
+        flow_decomposition = decompose_project_flow(
             project,
             PathFindingOptions(
                 strategy=payload.strategy,
@@ -71,6 +72,7 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
             ),
             expand=payload.expand,
         )
+        paths = flow_decomposition.paths
         path_relations = build_path_relations(
             paths,
             project=project if payload.expand else None,
@@ -106,6 +108,7 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
         "project": project_to_dict(project),
         "consistency_issues": [model_dump(issue) for issue in consistency_issues],
         "cycles": cycles,
+        "flow_decomposition": flow_decomposition_to_dict(flow_decomposition),
         "paths": paths_to_dicts(paths),
         "concurrent_paths": concurrent_paths_to_dicts(
             concurrent_paths,

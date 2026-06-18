@@ -11,18 +11,38 @@ def find_project_paths(
     entry_graph: str | None = None,
     expand: bool = True,
 ) -> list[PathResult]:
+    return decompose_project_flow(project, options, entry_graph=entry_graph, expand=expand).paths
+
+
+def decompose_project_flow(
+    project: CDFDProject,
+    options: PathFindingOptions | None = None,
+    *,
+    entry_graph: str | None = None,
+    expand: bool = True,
+):
+    from cdfd.flow_decomposition import _build_flow_distribution, decompose_flow
+    from cdfd.models import FlowDecompositionResult
+
     options = options or PathFindingOptions()
     graph_name = entry_graph or project.entry_graph
     if graph_name not in project.graphs:
         raise ValueError(f"Graph '{graph_name}' is not defined.")
 
     if not expand:
-        return find_paths(project.graphs[graph_name], options)
+        return decompose_flow(project.graphs[graph_name], options, project=project)
 
     paths = _expand_graph(project, graph_name, options, stack=[])
     if len(paths) > options.max_paths:
         raise PathLimitExceeded(f"Path generation exceeded max_paths={options.max_paths}.")
-    return sorted(paths, key=lambda path: (len(path.nodes), path.nodes, path.edges))
+    sorted_paths = sorted(paths, key=lambda path: (len(path.nodes), path.nodes, path.edges))
+    cycles = [cycle for graph_cycles in detect_project_cycles(project).values() for cycle in graph_cycles]
+    flow_distribution = _build_flow_distribution(sorted_paths, project.graphs[graph_name])
+    return FlowDecompositionResult(
+        paths=sorted_paths,
+        cycles=cycles,
+        flow_distribution=flow_distribution,
+    )
 
 
 def detect_project_cycles(project: CDFDProject) -> dict[str, list[list[str]]]:
