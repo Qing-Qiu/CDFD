@@ -660,7 +660,7 @@ Fig.~\ref{fig:case-xuexitong} shows a Xuexitong-style learning-platform case. Th
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\columnwidth,height=0.25\textheight,keepaspectratio]{\detokenize{figures/case_fig_6.png}}
+\includegraphics[width=\columnwidth,height=0.25\textheight,keepaspectratio]{\detokenize{figures/case_fig_1.png}}
 \caption{CDFD visualization of the Xuexitong case}
 \label{fig:case-xuexitong}
 \end{figure}
@@ -669,13 +669,21 @@ Fig.~\ref{fig:case-xuexitong} shows a Xuexitong-style learning-platform case. Th
 
 \subsubsection{Online Judge Case}
 
-Fig.~\ref{fig:case-oj} shows an Online Judge case with multilevel choices and concurrent judging. The system first authenticates the user. If login fails, it returns a failure message. If login succeeds, it updates login information and starts compilation. If compilation fails, an error result is generated and stored. If compilation succeeds, the submitted code is dispatched to several concurrent test-case judging nodes. The successful judging stage contains several parallel subpaths, and the final result is summarized and stored in \texttt{submit\_db}.
+Fig.~\ref{fig:case-oj} shows an Online Judge case with multilevel choices and concurrent judging. The system first authenticates the user. If login fails, it returns a failure message. If login succeeds, it updates login information and starts compilation. If compilation fails, an error result is generated and stored. If compilation succeeds, the submitted code is dispatched to several concurrent test-case judging nodes. The successful judging stage contains several parallel subpaths, and the final result is summarized and stored in \texttt{submit\_db}. Fig.~\ref{fig:case-oj-relations} shows the corresponding generated path relations.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\columnwidth,height=0.25\textheight,keepaspectratio]{\detokenize{figures/case_fig_7.png}}
+\includegraphics[width=\columnwidth,height=0.25\textheight,keepaspectratio]{\detokenize{figures/case_fig_6.png}}
 \caption{CDFD visualization of the Online Judge case}
 \label{fig:case-oj}
+\end{figure}
+\FloatBarrier
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\columnwidth,height=0.18\textheight,keepaspectratio]{\detokenize{figures/case_fig_7.png}}
+\caption{Path relations generated for the Online Judge case}
+\label{fig:case-oj-relations}
 \end{figure}
 \FloatBarrier
 
