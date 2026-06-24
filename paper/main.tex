@@ -54,7 +54,7 @@ Email: author@example.com}
 \maketitle
 
 \begin{abstract}
-Conditional Data Flow Diagrams (CDFDs) describe software behavior through data flows, processes, control conditions, and hierarchical process decomposition. Generating paths from a CDFD is therefore not equivalent to enumerating ordinary graph paths. A process may have several input and output ports, different ports may be mutually exclusive, inputs within one port may need to be available together, and independent branches may run concurrently. This paper presents a CDFD path generation tool that accepts a complete CDFD project file, converts it into a common graph model, checks structural validity, generates atomic and concurrent paths, and visualizes both the graph and the resulting path information. The paper defines the path model, explains JSON and SOFL `.cdfd' parsing, describes legality checks and system functions, details the port-aware algorithms for different CDFD cases, and evaluates the tool on representative CDFD inputs.
+Conditional Data Flow Diagrams (CDFDs) describe software behavior through data flows, processes, control conditions, and hierarchical process decomposition. Generating paths from a CDFD is therefore not equivalent to enumerating ordinary graph paths. A process may have several input and output ports, different ports may be mutually exclusive, inputs within one port may need to be available together, and independent branches may run concurrently. This paper presents a CDFD path generation tool that accepts a complete CDFD project file, converts it into a common graph model, checks structural validity, generates linear path projections and structured concurrent path expressions, and visualizes both the graph and the resulting path information. The paper defines the path model, explains JSON and SOFL `.cdfd' parsing, describes legality checks and system functions, details the port-aware algorithms for different CDFD cases, and evaluates the tool on representative CDFD inputs.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -67,7 +67,7 @@ Conditional Data Flow Diagrams (CDFDs) are used in SOFL-style specifications~\ci
 
 The course task is to design a tool that can import an arbitrary CDFD following the agreed file format and automatically output its paths. The task requires the input file to contain all information needed by the tool, so the result should not depend on manual interpretation after import. It also requires a clear path definition because CDFD paths may involve concurrency and mutually exclusive process interfaces.
 
-This topic is significant for two reasons. First, it turns an informal diagram-reading activity into a defined graph-analysis problem. A reader can ask whether a generated path is legal, why two branches are parallel, or why one input is insufficient to activate a process, and the tool can answer through explicit model rules. Second, it supports CDFD review and teaching. Instead of manually following arrows in a complex diagram, students can compare the imported CDFD, the generated atomic paths, concurrent paths, path relations, and consistency warnings.
+This topic is significant for two reasons. First, it turns an informal diagram-reading activity into a defined graph-analysis problem. A reader can ask whether a generated path is legal, why two branches are parallel, or why one input is insufficient to activate a process, and the tool can answer through explicit model rules. Second, it supports CDFD review and teaching. Instead of manually following arrows in a complex diagram, students can compare the imported CDFD, generated linear projections, structured concurrent path expressions, path relations, and consistency warnings.
 
 \section{Method Overview}
 
@@ -85,67 +85,102 @@ where \(M\) is the module information, \(\mathcal{S}\) is the set of process spe
 \textbf{Definition 2 (CDFD graph).}
 A CDFD graph is a tuple
 \begin{equation}
-  G = (V, E, V_s, V_t, R),
+  G = (V, E, \mathcal{D}, V_s, V_t, R),
 \end{equation}
-where \(V\) is the node set, \(E\) is the directed edge set, \(V_s\) is the set of source nodes, \(V_t\) is the set of sink nodes, and \(R\) is the set of explicit structures such as parallel, fork, choice, join, merge, and process decomposition hints.
+where \(V\) is the node set, \(E\) is the directed edge set, \(\mathcal{D}\) is the set of data items, \(V_s\) is the set of source nodes, \(V_t\) is the set of sink nodes, and \(R\) is the set of explicit structures such as parallel, fork, choice, join, merge, and process decomposition hints.
 
 \textbf{Definition 3 (edge).}
-An edge \(e \in E\) has a source \(src(e)\), a target \(dst(e)\), a kind \(kind(e)\), a data label set \(data(e)\), and an optional condition \(cond(e)\). Data-flow and active-flow edges are traversable by paths. Control-flow edges are not path segments; they are collected as path conditions for the affected process.
+An edge \(e \in E\) is represented as
+\begin{equation}
+  e=(src(e),dst(e),kind(e),data(e),guard(e)).
+\end{equation}
+Here \(src(e)\) is the source node, \(dst(e)\) is the target node, \(kind(e)\) is data-flow, active-flow, or control-flow, \(data(e)\subseteq\mathcal{D}\) is the data carried by the edge, and \(guard(e)\) is the condition under which the edge may be selected. If no guard is given, it is treated as true. Data-flow and active-flow edges are traversable by paths. Control-flow edges are not path segments; they contribute conditions to the affected process or path.
 
 \subsection{Input File Design}
 
-The canonical project format is `cdfd-json-v1'. It contains:
+The tool accepts two input forms. The first is a graph-structured JSON file in the canonical `cdfd-json-v1' format. It records the module information, process specifications, graph nodes and edges, start and end nodes, ports, guards, and explicit structures.
 
-\begin{itemize}
-\item `module': constants, types, variables, and entry behavior graph;
-\item `processes': process specifications, including input/output data, ports, preconditions, postconditions, and optional decomposition graph names;
-\item `graphs': graph layers, each with nodes, edges, starts, ends, and explicit structures;
-\item `metadata': optional layout or source-specific information.
-\end{itemize}
+The second input form is a `.cdfd' file generated by SOFLTool. This file is an XML document that stores a CDFD drawing through component and connection lists. The importer converts both JSON and SOFLTool `.cdfd' files into the same internal CDFD project model, so all later checks and path algorithms operate on one unified graph representation.
 
-The tool also imports SOFL desktop `.cdfd' XML files. A `.cdfd' file stores a single drawing as `componentList' and `connectionList'. The importer maps these XML elements into the same internal CDFD project model used by JSON. Thus the algorithm works on one common model rather than on several unrelated input formats.
+\subsection{Path Semantics Primitives}
 
-YAML and CSV are not accepted as CDFD input formats. YAML would only provide another syntax for the same JSON contract. CSV cannot completely represent modules, process ports, decomposition, control conditions, and CDFD structures.
-
-\subsection{Path Definitions}
+This subsection defines the auxiliary semantic objects used to decide whether a CDFD path is legal. The CDFD path itself is defined separately in the next subsection.
 
 \textbf{Definition 4 (process port).}
-For a process \(p\), an input port \(q^{in}\) is a group of input data items or input edges. An output port \(q^{out}\) is a group of output data items or output edges. Inputs inside one input port use AND semantics. Different input ports are alternatives unless the CDFD explicitly states otherwise. Different output ports are also alternatives by default, while multiple edges in one selected output port may be produced together.
+For a process \(p\), an input port \(q^{in}\) is a group of input data items or input edges, and an output port \(q^{out}\) is a group of output data items or output edges. Inputs inside one input port use AND semantics by default. If the port mode is \texttt{any}, one available input is sufficient. Different input ports are activation alternatives unless the CDFD explicitly states that they must be synchronized. Different output ports are also alternatives by default, while multiple edges inside one selected output port may be produced together.
 
-\textbf{Definition 5 (port readiness).}
-Let \(D\) be the set of available data items and \(A\) the set of activated upstream nodes. An input port \(q\) of process \(p\) is ready if every non-control input edge assigned to \(q\) has its data available and its source node activated:
+\textbf{Definition 5 (path state).}
+During path generation, the current execution state is
 \begin{equation}
-  Ready(p,q,D,A) \Leftrightarrow
-  \forall e \in InEdges(p,q):
-  data(e) \subseteq D \land src(e) \in A.
+  \sigma=(D,A,O,\Gamma),
 \end{equation}
-If a port is declared with `mode = any', one ready input item is sufficient. The default mode is `all'.
+where \(D\subseteq\mathcal{D}\) is the set of available data items, \(A\subseteq V\) is the set of activated nodes, \(O\) maps activated nodes to their output results, and \(\Gamma\) is the set of collected path conditions.
 
-\textbf{Definition 6 (process activation).}
-A process \(p\) is activatable when at least one of its input ports is ready:
+\textbf{Definition 6 (port readiness).}
+An input port \(q\) of process \(p\) is ready in state \(\sigma=(D,A,O,\Gamma)\) if its required input edges are satisfied by the available data and activated upstream nodes:
 \begin{equation}
-  Fire(p,D,A) \Leftrightarrow
-  \exists q \in \Pi^{in}_p: Ready(p,q,D,A).
+  Sat(e,\sigma)\Leftrightarrow data(e)\subseteq D \land src(e)\in A.
 \end{equation}
-If no explicit ports are defined, the process input list is treated as one AND port.
+\begin{align}
+Ready_{all}(p,q,\sigma)&\Leftrightarrow
+\forall e\in In(p,q): Sat(e,\sigma),\\
+Ready_{any}(p,q,\sigma)&\Leftrightarrow
+\exists e\in In(p,q): Sat(e,\sigma).
+\end{align}
+The predicate \(Ready(p,q,\sigma)\) uses \(Ready_{all}\) when \(mode(q)=all\), and \(Ready_{any}\) when \(mode(q)=any\).
+If no explicit ports are defined, the process input list is treated as one \texttt{all} input port.
 
-\textbf{Definition 7 (atomic path).}
-An atomic path is a source-to-sink data-flow trace
+\textbf{Definition 7 (process activation).}
+A process \(p\) is activatable in state \(\sigma\) when at least one of its input ports is ready:
 \begin{equation}
-  \pi = \langle v_0, e_1, v_1, \ldots, e_n, v_n \rangle,
+  Fire(p,\sigma)\Leftrightarrow
+  \exists q^{in} \in \Pi^{in}_p: Ready(p,q^{in},\sigma).
 \end{equation}
-where \(v_0 \in V_s\), \(v_n \in V_t\), \(src(e_i)=v_{i-1}\), \(dst(e_i)=v_i\), each \(e_i\) is traversable, and every process activation in the trace satisfies Definition 6.
+One activation selects an input port, selects an output port, and produces an output result:
+\begin{equation}
+  Activate(p,q^{in},q^{out},r).
+\end{equation}
+The selected output port determines which output edges may be produced together.
 
-\textbf{Definition 8 (concurrent path).}
-A concurrent path is a structured path term
+\textbf{Definition 8 (guarded edge).}
+A traversable edge \(e\) may be followed in state \(\sigma=(D,A,O,\Gamma)\) only when its source node has been activated and its guard is satisfied:
 \begin{equation}
-  C ::= v \mid C_1 ; C_2 \mid Par(C_1,\ldots,C_k) \mid Xor(C_1,\ldots,C_k).
+  GuardOK(e,\sigma)\Leftrightarrow guard(e)(O(src(e)),D)=true.
 \end{equation}
-Sequential composition is printed as `->', parallel composition as `[A || B]', and exclusive alternatives through path relations as `XOR'. A legal concurrent path must have legal atomic path projections and must preserve fork, join, and port-activation constraints.
+\begin{equation}
+  Enabled(e,\sigma)\Leftrightarrow
+  src(e)\in A \land GuardOK(e,\sigma).
+\end{equation}
+Thus a condition node or process output determines which branch is taken. If several guards from the same source are mutually exclusive, they define alternative possible paths; one concrete execution contains only the branch whose guard is true.
+
+\subsection{CDFD Path Definition}
+
+The central object of the method is the CDFD path. Unlike an ordinary graph path, a CDFD path is stateful: it must respect data availability, process ports, guarded branches, and synchronization.
+
+\textbf{Definition 9 (CDFD path).}
+A CDFD path describes one possible execution of a CDFD from source nodes to sink nodes. It keeps executed nodes and traversed edges as separate objects. Formally, a CDFD path is
+\begin{equation}
+  \pi=(V_\pi,E_\pi,\alpha_\pi,\prec_\pi,\Sigma_\pi),
+\end{equation}
+where:
+\begin{itemize}
+\item \(V_\pi\) is the finite set of node executions in the path;
+\item \(E_\pi\subseteq E\) is the finite set of traversed data-flow or active-flow edges;
+\item \(\alpha_\pi\) records the activation choice for each executed process, namely its selected input port, selected output port, and produced result;
+\item \(\prec_\pi\) is the must-happen-before relation over node executions in \(V_\pi\). If \(u\prec_\pi v\), then \(u\) must execute before \(v\). Nodes with no ordering relation may execute in parallel;
+\item \(\Sigma_\pi=(\sigma_0,\ldots,\sigma_n)\) is the state sequence produced by the execution, where each state has the form \(\sigma=(D,A,O,\Gamma)\).
+\end{itemize}
+\textbf{Definition 10 (path expression).}
+For presentation, a path or a set of related paths is written as
+\begin{equation}
+  P ::= v \mid P_1 ; P_2 \mid Par(P_1,\ldots,P_k) \mid Xor(P_1,\ldots,P_k).
+\end{equation}
 
 \subsection{CDFD Parsing}
 
 The JSON parser validates the file against the JSON Schema~\cite{json_schema} and then creates `CDFDProject', `CDFDGraph', `Node', `Edge', `PortSpec', and `GraphStructure' objects. The SOFL parser reads XML components, resolves endpoints by component names and `shapeIndex', falls back to coordinate-based endpoint inference when a visible line touches a component, and preserves layout, port counts, connector indexes, and edge kinds as metadata.
+
+Both importers normalize ports, guards, and explicit graph structures into the same CDFD project model.
 
 After parsing, both JSON and SOFL inputs are represented as the same graph model:
 \begin{equation}
@@ -173,10 +208,10 @@ The implemented system provides these user-facing functions:
 \begin{itemize}
 \item import standard JSON and SOFL `.cdfd' files;
 \item infer or accept explicit start and end nodes;
-\item generate atomic source-to-sink paths;
-\item generate structured concurrent paths;
+\item generate linear projections of valid CDFD paths;
+\item generate structured path expressions with sequential, parallel, and exclusive branches;
 \item analyze path relations such as parallel, exclusive, and joined-output;
-\item expand multi-level process decompositions for atomic paths;
+\item expand multi-level process decompositions for linear path projections;
 \item render SOFL-style SVG diagrams;
 \item provide Web UI, Web API, and CLI output;
 \item export text, JSON, CSV, and Markdown results.
@@ -188,9 +223,9 @@ The implemented system provides these user-facing functions:
 
 \subsection{Overall Architecture}
 
-The CDFD Path Generator follows a four-stage architecture: parsing, modeling, analysis, and output. A raw CDFD input, either in the canonical JSON format, in the custom `.cdfd' format, or in SOFL XML, is first parsed into the common project model \texttt{CDFDProject}. The analysis layer then runs atomic path enumeration, concurrent path search, multilevel expansion, path-relation inference, and consistency checking over the same model. The final output is a set of structured results, including \texttt{PathResult}, \texttt{ConcurrentPathResult}, and \texttt{FlowDecompositionResult}, which can then be exported or visualized.
+The CDFD Path Generator follows a four-stage architecture: parsing, modeling, analysis, and output. A raw CDFD input, either in the canonical JSON format, in the custom `.cdfd' format, or in SOFL XML, is first parsed into the common project model \texttt{CDFDProject}. The analysis layer then runs linear path-projection enumeration, structured concurrent path search, multilevel expansion, path-relation inference, and consistency checking over the same model. The final output is a set of structured results, including \texttt{PathResult}, \texttt{ConcurrentPathResult}, and \texttt{FlowDecompositionResult}, which can then be exported or visualized.
 
-The analysis pipeline contains two complementary path-generation routes. The first route performs depth-first search (DFS) to enumerate simple source-to-sink paths. This route is compatible with traditional CDFD test scenarios and with multilevel process expansion. The second route uses a multi-token state machine to represent fork, join, and synchronized multi-input semantics. This route addresses the limitation of linear paths, namely that a single sequence cannot express two independent branches running at the same time. Both routes share the same \texttt{CDFDGraph} model and the same node-activation predicate \texttt{can\_activate\_node}, so their semantics remain consistent.
+The analysis pipeline contains two complementary path-generation routes. The first route performs depth-first search (DFS) to enumerate source-to-sink linear projections of valid CDFD paths. This route is compatible with traditional CDFD test scenarios and with multilevel process expansion. The second route uses a multi-token state machine to represent fork, join, and synchronized multi-input semantics as structured path expressions. This route addresses the limitation of linear projections, namely that a single sequence cannot express two independent branches running at the same time. Both routes share the same \texttt{CDFDGraph} model and the same node-activation predicate \texttt{can\_activate\_node}, so their semantics remain consistent.
 
 \subsection{Data Model Design}
 
@@ -202,7 +237,7 @@ The graph-element layer describes the topology of one CDFD graph. Its core class
 
 \texttt{Node} stores a graph node. Its main fields are \texttt{id}, \texttt{type}, and \texttt{label}. The node type may represent a process, an external entity, or a data store.
 
-\texttt{Edge} stores a directed connection. Its fields include \texttt{source}, \texttt{target}, \texttt{kind}, \texttt{data}, and \texttt{condition}. A control edge carries control information and is not treated as a traversable data-flow segment.
+\texttt{Edge} stores a directed connection. Its fields include \texttt{source}, \texttt{target}, \texttt{kind}, \texttt{data}, and \texttt{condition}; the condition is used as the edge guard in the path semantics. A control edge carries control information and is not treated as a traversable data-flow segment.
 
 \texttt{PortSpec} describes a process port. Its fields include \texttt{data}, \texttt{edges}, and \texttt{mode}. The mode \texttt{all} represents AND semantics inside a port, while \texttt{any} represents OR semantics inside a port. This model is used to express SOFL processes with multiple interfaces, for example a login process that accepts either account-password input or token input.
 
@@ -242,9 +277,9 @@ The port-grouping rule is as follows. If \texttt{ProcessSpec} explicitly declare
 
 \subsubsection{Path Result Layer}
 
-\texttt{PathResult} records one atomic path. It contains the node sequence, edge sequence, edge sources, edge targets, edge data, accumulated data, delivered outputs, explicit sink, preconditions, and edge conditions. In a multilevel result, an edge id is qualified by its graph name, such as \texttt{A1\_detail:e1}, so that every edge can still be traced to its original graph layer.
+\texttt{PathResult} records one source-to-sink linear projection of a valid CDFD path. It contains the node sequence, edge sequence, edge sources, edge targets, edge data, accumulated data, delivered outputs, explicit sink, preconditions, and edge conditions. In a multilevel result, an edge id is qualified by its graph name, such as \texttt{A1\_detail:e1}, so that every edge can still be traced to its original graph layer.
 
-Concurrent paths are represented by a \texttt{ConcurrentPathNode} tree. A node with \texttt{kind=node} represents a graph node, \texttt{kind=sequential} represents sequential execution, and \texttt{kind=parallel} represents concurrent branches. \texttt{ConcurrentPathResult} keeps both the tree root and a flat summary of nodes, edges, data, outputs, and a readable notation such as \texttt{IN -> A -> [B || C] -> [OUT\_X4 || OUT\_X5]}.
+Structured concurrent path expressions are represented by a \texttt{ConcurrentPathNode} tree. A node with \texttt{kind=node} represents a graph node, \texttt{kind=sequential} represents sequential execution, and \texttt{kind=parallel} represents concurrent branches. \texttt{ConcurrentPathResult} keeps both the tree root and a flat summary of nodes, edges, data, outputs, and a readable notation such as \texttt{IN -> A -> [B || C] -> [OUT\_X4 || OUT\_X5]}.
 
 \texttt{FlowDecompositionResult} stores all source-to-sink paths, detected cycles, and a source-to-sink flow-distribution matrix. The matrix records how many legal paths connect each source to each sink.
 
@@ -274,11 +309,11 @@ Algorithm & Worst-Case Complexity & Safety Mechanism \\
 \end{tabular}
 \end{table*}
 
-The CLI and Web API use a default \texttt{max\_paths} limit of 10000 to prevent resource exhaustion on large graphs. The test suite covers atomic paths, concurrent paths, multilevel expansion, path relations, multi-output examples, and scenario generation.
+The CLI and Web API use a default \texttt{max\_paths} limit of 10000 to prevent resource exhaustion on large graphs. The test suite covers linear path projections, concurrent path expressions, multilevel expansion, path relations, multi-output examples, and scenario generation.
 
 \subsection{Node Activation Algorithm}
 
-Before either the atomic DFS or the concurrent token search can expand to a node, the algorithm must decide whether the node can be activated under the current data and activation state. This decision is centralized in \texttt{can\_activate\_node}. Its priority order is port-aware: explicit input ports are checked first, compact \texttt{inputs} declarations are checked second, and implicit port groups inferred from incoming edges are checked last.
+Before either the linear DFS or the concurrent token search can expand to a node, the algorithm must decide whether the node can be activated under the current data and activation state. This decision is centralized in \texttt{can\_activate\_node}. Its priority order is port-aware: explicit input ports are checked first, compact \texttt{inputs} declarations are checked second, and implicit port groups inferred from incoming edges are checked last.
 
 \begin{widealgorithm}{CAN\_ACTIVATE\_NODE}
 \Require graph $G$, node $v$, data set $D$, active set $A$, process map $P$
@@ -311,13 +346,13 @@ Before either the atomic DFS or the concurrent token search can expand to a node
 
 The helper predicate \texttt{PORT\_GROUP\_READY} expresses AND semantics inside one port group: each required data item must already be available, and if the edge has a source node, that source must already be activated. The semantics between port groups are determined by \texttt{uses\_or\_input\_ports}. Mutually exclusive input alternatives use OR semantics, while synchronized join inputs use AND semantics.
 
-\subsection{Atomic Path Enumeration Algorithm}
+\subsection{Linear Projection Enumeration Algorithm}
 
-Atomic path enumeration uses DFS. Starting from each effective source, it extends through traversable flow edges and records a path whenever it reaches a sink in \texttt{graph.ends}. The search is controlled by \texttt{PathFindingOptions}. In \texttt{simple} mode, repeated nodes are forbidden. In \texttt{max-depth} mode, repeated nodes are allowed only up to a depth bound. The global \texttt{max\_paths} bound prevents combinational explosion.
+Linear projection enumeration uses DFS. Starting from each effective source, it extends through traversable flow edges and records a source-to-sink projection whenever it reaches a sink in \texttt{graph.ends}. The search is controlled by \texttt{PathFindingOptions}. In \texttt{simple} mode, repeated nodes are forbidden. In \texttt{max-depth} mode, repeated nodes are allowed only up to a depth bound. The global \texttt{max\_paths} bound prevents combinational explosion.
 
 \begin{widealgorithm}{FIND\_PATHS}
 \Require CDFD graph $G$, search options $O$, process map $P$
-\Ensure all valid source-to-sink atomic paths
+\Ensure all valid source-to-sink linear projections
 \State $paths \gets \emptyset$
 \Procedure{DFS}{$cur,nodePath,edgePath,dataPath,D,A,depth$}
   \If{$cur \in G.ends$}
@@ -368,7 +403,7 @@ A linear path cannot express that two branches execute at the same time. Therefo
 
 \begin{widealgorithm}{FIND\_CONCURRENT\_PATHS}
 \Require CDFD graph $G$, search options $O$, process map $P$
-\Ensure concurrent paths represented as execution trees
+\Ensure concurrent path expressions represented as execution trees
 \State $frontier \gets \Call{InitialTokenStates}{G,P}$
 \Statex \hspace{\algorithmicindent}\textit{single start or synchronized starts}
 \State $results \gets \emptyset$; $visited \gets \emptyset$
@@ -413,10 +448,10 @@ The initial token state depends on start synchronization. A normal graph creates
 
 \subsection{Path Relation Inference Algorithm}
 
-In addition to concurrent trees, the system infers relations among atomic paths. It recognizes parallel, joined-output, and exclusive relations. Explicit graph structures have priority. If the graph declares a parallel or choice structure, the relation is matched from that declaration. Otherwise, the system uses topology and condition compatibility.
+In addition to concurrent trees, the system infers relations among linear path projections. It recognizes parallel, joined-output, and exclusive relations. Explicit graph structures have priority. If the graph declares a parallel or choice structure, the relation is matched from that declaration. Otherwise, the system uses topology and condition compatibility.
 
 \begin{widealgorithm}{BUILD\_PATH\_RELATIONS}
-\Require atomic path set $Paths$, CDFD graph $G$
+\Require linear path projection set $Paths$, CDFD graph $G$
 \Ensure inferred path relations
 \If{$G.structures \ne \emptyset$}
   \State $relations \gets \Call{MatchExplicitStructures}{Paths,G.structures}$
@@ -450,7 +485,7 @@ When \texttt{ProcessSpec.decom} is not empty, the process node represents a chil
 
 \begin{widealgorithm}{EXPAND\_GRAPH}
 \Require project $Project$, graph name $name$, options $O$, expansion stack $S$
-\Ensure atomic paths after replacing decomposed processes with child CDFD paths
+\Ensure linear projections after replacing decomposed processes with child CDFD paths
 \If{$name \in S$}
   \State \textbf{raise} RecursionError \Comment{recursive decomposition}
 \EndIf
@@ -506,7 +541,7 @@ When a sink node can deliver several data items, or when a graph has several sin
 \State \Return $\bigcup_{edge \in \Call{IncomingEdges}{G,t}} edge.data$
 \end{widealgorithm}
 
-\texttt{decompose\_flow} wraps the atomic path set with sink-oriented summaries. It may sort paths by demand order, distance, or capacity metadata, detects cycles, and then builds a matrix from sources to sinks. It is not a max-flow algorithm; it summarizes legal enumerated paths rather than consuming shared edge capacity.
+\texttt{decompose\_flow} wraps the linear projection set with sink-oriented summaries. It may sort paths by demand order, distance, or capacity metadata, detects cycles, and then builds a matrix from sources to sinks. It is not a max-flow algorithm; it summarizes legal enumerated paths rather than consuming shared edge capacity.
 
 \subsection{Cycle Detection}
 
@@ -539,10 +574,10 @@ The algorithm uses a standard three-color DFS. Control edges are ignored because
 
 \subsection{Functional Scenario Generation}
 
-Functional scenario generation is the final transformation from path results to readable test-oriented descriptions. Concurrent paths that contain a parallel node become concurrent scenarios. Atomic paths not covered by any concurrent scenario become single-path scenarios. This avoids describing the same execution flow twice.
+Functional scenario generation is the final transformation from path results to readable test-oriented descriptions. Concurrent path expressions that contain a parallel node become concurrent scenarios. Linear projections not covered by any concurrent scenario become single-path scenarios. This avoids describing the same execution flow twice.
 
 \begin{widealgorithm}{BUILD\_FUNCTIONAL\_SCENARIOS}
-\Require atomic paths $Paths$, concurrent paths $CPaths$, path relations $Relations$
+\Require linear projections $Paths$, concurrent path expressions $CPaths$, path relations $Relations$
 \Ensure readable functional scenarios
 \State $scenarios \gets \emptyset$; $covered \gets \emptyset$
 \ForAll{$cp \in CPaths$}
@@ -561,11 +596,11 @@ Functional scenario generation is the final transformation from path results to 
 \State \Return $scenarios$
 \end{widealgorithm}
 
-Coverage is checked by comparing edge sets after removing graph-name prefixes from multilevel edge ids. If an atomic path's edge set is a subset of the concurrent path's edge set, it is treated as already covered by that concurrent scenario.
+Coverage is checked by comparing edge sets after removing graph-name prefixes from multilevel edge ids. If a linear projection's edge set is a subset of the concurrent expression's edge set, it is treated as already covered by that concurrent scenario.
 
 \subsection{Summary}
 
-This section described the technical details of the CDFD Path Generator. At the model level, the graph-element, process, project, path-result, and analysis-output layers provide one shared representation for JSON, SOFL, and multilevel CDFDs. At the algorithm level, atomic DFS and multi-token concurrent search form a dual path-generation framework. The unified activation predicate connects these two routes and keeps port semantics consistent. Additional mechanisms, including path-relation inference, multilevel branch filtering, output collection, and flow decomposition, turn a raw node sequence into a structured business-flow description.
+This section described the technical details of the CDFD Path Generator. At the model level, the graph-element, process, project, path-result, and analysis-output layers provide one shared representation for JSON, SOFL, and multilevel CDFDs. At the algorithm level, linear DFS and multi-token concurrent search form a dual path-generation framework. The unified activation predicate connects these two routes and keeps port semantics consistent. Additional mechanisms, including path-relation inference, multilevel branch filtering, output collection, and flow decomposition, turn raw path projections into structured business-flow descriptions.
 
 \section{Case Studies}
 
@@ -693,11 +728,11 @@ Two points are not fully settled and should be stated explicitly.
 
 First, SOFL `.cdfd' files store connector and coordinate information in tool-specific ways. The importer preserves connector indexes and infers missing endpoints, but more real SOFL files are needed to verify every port-mapping case.
 
-Second, multi-level atomic expansion is implemented, but fully unified concurrent expansion across nested decomposition graphs is not complete. A future version should replace a decomposed process with a concurrent subtree when the child graph contains parallel structure.
+Second, multi-level linear expansion is implemented, but fully unified concurrent expansion across nested decomposition graphs is not complete. A future version should replace a decomposed process with a concurrent subtree when the child graph contains parallel structure.
 
 \section{Conclusion}
 
-This paper presented a CDFD path generation method and tool that covers the required tasks: defining a complete input format, parsing CDFD data into a common graph model, checking legality and consistency, generating atomic and concurrent paths, handling process ports and different algorithmic cases, and visualizing results. The main idea is to treat CDFD path generation as a semantic graph problem. Atomic paths capture source-to-sink data-flow traces, while concurrent paths capture independent branches and synchronized joins. The port-aware rules prevent the common error of treating a multi-port process as if all of its interfaces were active at once. The implementation and case studies show that the approach can support JSON inputs, SOFL `.cdfd' imports, multilevel examples, port alternatives, joins, and cyclic graphs.
+This paper presented a CDFD path generation method and tool that covers the required tasks: defining a complete input format, parsing CDFD data into a common graph model, checking legality and consistency, generating linear projections and structured path expressions, handling process ports and different algorithmic cases, and visualizing results. The main idea is to treat CDFD path generation as a semantic graph problem. Linear projections capture source-to-sink views of valid executions, while concurrent path expressions capture independent branches and synchronized joins. The port-aware rules prevent the common error of treating a multi-port process as if all of its interfaces were active at once. The implementation and case studies show that the approach can support JSON inputs, SOFL `.cdfd' imports, multilevel examples, port alternatives, joins, and cyclic graphs.
 
 
 \clearpage
