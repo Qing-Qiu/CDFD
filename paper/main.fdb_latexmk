@@ -1,14 +1,6 @@
 # Fdb version 3
-["bibtex main"] 1782294826 "main.aux" "main.bbl" "main" 1782294827
-  "./template/IEEEtran.bst" 1782131379 57748 7c8250ecf02814ce6ddc0cdbb63df1dd ""
-  "main.aux" 1782294827 6910 f5fb4255fa7c6f7842d788dd20457f50 "pdflatex"
-  "references.bib" 1782131379 822 3f9607f57f1eabf573efa43a61007876 ""
-  (generated)
-  "main.bbl"
-  "main.blg"
-["pdflatex"] 1782294826 "/home/lisheng/gitCode/CDFD/paper/main.tex" "main.pdf" "main" 1782294827
+["pdflatex"] 1782392679 "main.tex" "main.pdf" "main" 1782392680
   "/etc/texmf/web2c/texmf.cnf" 1768199488 475 c0e671620eb5563b2130f56340a5fde8 ""
-  "/home/lisheng/gitCode/CDFD/paper/main.tex" 1782294824 45877 acab345f17bb2206887361e11652e2c9 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/courier/pcrr7t.tfm" 1136768653 960 379cc0019370a9e0208a0a3f949f847a ""
@@ -41,6 +33,7 @@
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmsy6.tfm" 1136768653 1116 933a60c408fc0a863a92debe84b2d294 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmsy8.tfm" 1136768653 1120 8b7d695260f3cff42e636090a8002094 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmsy9.tfm" 1136768653 1116 25a7bf822c58caf309a702ef79f4afbb ""
+  "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb" 1248133631 30251 6afa5cb1d0204815a708a080681d4674 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb" 1248133631 36299 5f9df58c2139e7edcf37c8fca4bd384d ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi6.pfb" 1248133631 37166 8ab3487cbe3ab49ebce74c29ea2418db ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb" 1248133631 36281 c355509802a035cadc5f15869451dcee ""
@@ -94,6 +87,7 @@
   "/usr/share/texlive/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def" 1642022539 29921 f0f4f870357ebfb8fe58ed9ed4ee9b92 ""
   "/usr/share/texlive/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg" 1279039959 678 4792914a8f45be57bb98413425e4c7af ""
   "/usr/share/texlive/texmf-dist/tex/latex/placeins/placeins.sty" 1137110565 4087 636308456f60d2b31cbf97867db5708d ""
+  "/usr/share/texlive/texmf-dist/tex/latex/psnfss/omsptm.fd" 1137110629 576 95c2c0baea9c719a4be29a3d4122498b ""
   "/usr/share/texlive/texmf-dist/tex/latex/psnfss/ot1pcr.fd" 1137110629 985 1ed784d7bfe47179f3550d2303b073f8 ""
   "/usr/share/texlive/texmf-dist/tex/latex/psnfss/ot1ptm.fd" 1137110629 961 15056f4a61917ceed3a44e4ac11fcc52 ""
   "/usr/share/texlive/texmf-dist/tex/latex/tools/array.sty" 1636758526 12694 6c23725d50ab9d1e2d3ce482c58ffcf3 ""
@@ -109,9 +103,8 @@
   "figures/case_fig_5.png" 1782266253 211081 6879251ad1652acc7729b42e5d46b53b ""
   "figures/case_fig_6.png" 1782266253 314657 bd1101ef98cd52e4b17532d6efa53005 ""
   "figures/case_fig_7.png" 1782266253 84935 5c8685ff1a13c29fb8f3f332d5a1da22 ""
-  "main.aux" 1782294827 6910 f5fb4255fa7c6f7842d788dd20457f50 "pdflatex"
-  "main.bbl" 1782294826 1101 540a460ffe807942d090ae97847baa7e "bibtex main"
-  "main.tex" 1782294824 45877 acab345f17bb2206887361e11652e2c9 ""
+  "main.aux" 1782392680 6668 572e5561d1e29337adbe927dc6e4bc30 "pdflatex"
+  "main.tex" 1782392674 46583 cb433357cdd835c94c5d6056530962e1 ""
   "template/IEEEtran.cls" 1782131379 281957 5b2e4fa15b0f7eabb840ebf67df4c0f7 ""
   (generated)
   "main.aux"
