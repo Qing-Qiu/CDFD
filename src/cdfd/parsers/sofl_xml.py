@@ -235,7 +235,8 @@ def _parse_connections(root: ET.Element, components: list[Component], nodes: dic
         source_condition = nodes.get(source)
         condition = None
         if source_condition and source_condition.type.endswith("_condition"):
-            condition = _optional_str(source_condition.metadata.get("condition"))
+            source_condition_text = _optional_str(source_condition.metadata.get("condition"))
+            condition = label if kind == "control" and label else source_condition_text
 
         to_endpoint = element.find("./to")
         to_meta = _endpoint_metadata(to_endpoint)
@@ -586,7 +587,7 @@ def _degree_maps(nodes: dict[str, Node], edges: list[Edge]) -> tuple[dict[str, i
     incoming = {node_id: 0 for node_id in nodes}
     outgoing = {node_id: 0 for node_id in nodes}
     for edge in edges:
-        if edge.kind == "control":
+        if not _is_degree_edge(nodes, edge):
             continue
         outgoing[edge.source] = outgoing.get(edge.source, 0) + 1
         incoming[edge.target] = incoming.get(edge.target, 0) + 1
@@ -601,6 +602,13 @@ def _is_control_only_external(node_id: str, nodes: dict[str, Node], edges: list[
         return False
     outgoing = [edge for edge in edges if edge.source == node_id]
     return bool(outgoing) and all(edge.kind == "control" for edge in outgoing)
+
+
+def _is_degree_edge(nodes: dict[str, Node], edge: Edge) -> bool:
+    if edge.kind != "control":
+        return True
+    source = nodes.get(edge.source)
+    return bool(source and source.type.endswith("_condition"))
 
 
 def _edge_kind(tag: str) -> str:

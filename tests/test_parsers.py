@@ -298,3 +298,19 @@ def test_parse_sofl_cdfd_xml_project_generates_paths():
     assert [(relation.kind, relation.path_ids, relation.structure_id) for relation in relations] == [
         ("exclusive", ["P2", "P4", "P3"], "condition_single_condition_5")
     ]
+
+
+def test_parse_sofl_condition_control_flows_as_path_branches():
+    project = parse_project((ROOT / "tmpCode" / "condition.cdfd").read_text(encoding="utf-8"), "cdfd")
+    graph = project.entry()
+
+    assert graph.starts == {"IN_input1"}
+    assert graph.ends == {"OUT_5", "OUT_6"}
+
+    paths = find_project_paths(project)
+
+    assert [path.nodes for path in paths] == [
+        ["IN_input1", "process0", "single_condition_1", "process1", "OUT_5"],
+        ["IN_input1", "process0", "single_condition_1", "process2", "OUT_6"],
+    ]
+    assert [path.conditions for path in paths] == [["Yes"], ["No"]]

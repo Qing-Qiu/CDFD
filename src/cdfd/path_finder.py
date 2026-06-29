@@ -187,7 +187,7 @@ def find_paths(
             return
 
         for edge in graph.outgoing_edges(current):
-            if _is_control_edge(edge):
+            if not _is_path_edge(graph, edge):
                 continue
             if strategy == "simple" and edge.target in node_path:
                 continue
@@ -418,7 +418,7 @@ def detect_cycles(graph: CDFDGraph) -> list[list[str]]:
         stack.append(node_id)
 
         for edge in graph.outgoing_edges(node_id):
-            if _is_control_edge(edge):
+            if not _is_path_edge(graph, edge):
                 continue
             target = edge.target
             if state.get(target) == "gray":
@@ -533,7 +533,7 @@ def _requires_sync_start(
         incoming_sources = {
             edge.source
             for edge in graph.incoming_edges(node_id)
-            if not _is_control_edge(edge) and edge.source in starts
+            if _is_path_edge(graph, edge) and edge.source in starts
         }
         if len(incoming_sources) >= 2:
             return True
@@ -557,7 +557,7 @@ def _expand_token_state(
         if token in graph.ends and token in state.activated_nodes:
             continue
 
-        outgoing = [edge for edge in graph.outgoing_edges(token) if not _is_control_edge(edge)]
+        outgoing = [edge for edge in graph.outgoing_edges(token) if _is_path_edge(graph, edge)]
         if not outgoing:
             continue
 
@@ -592,7 +592,7 @@ def _advance_all_tokens(
             moves.append((token, None))
             continue
 
-        outgoing = [edge for edge in graph.outgoing_edges(token) if not _is_control_edge(edge)]
+        outgoing = [edge for edge in graph.outgoing_edges(token) if _is_path_edge(graph, edge)]
         if not outgoing:
             continue
         if len(outgoing) != 1:
@@ -636,7 +636,7 @@ def _activate_ready_join_nodes(
             activated_nodes=activated,
         ):
             continue
-        incoming = [edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)]
+        incoming = [edge for edge in graph.incoming_edges(node_id) if _is_path_edge(graph, edge)]
         if not incoming:
             continue
         port_groups, _ = graph.get_node_input_port_groups(node_id, processes)
@@ -948,7 +948,7 @@ def _requires_concurrent_activation_gate(
         return True
     starts = graph.starts or {graph.start}
     incoming = [
-        edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)
+        edge for edge in graph.incoming_edges(node_id) if _is_path_edge(graph, edge)
     ]
     if not incoming:
         return False
@@ -966,7 +966,7 @@ def _requires_activation_gate(
         return False
     starts = graph.starts or {graph.start}
     incoming = [
-        edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)
+        edge for edge in graph.incoming_edges(node_id) if _is_path_edge(graph, edge)
     ]
     if not incoming:
         return False
@@ -1015,7 +1015,7 @@ def _find_and_input_groups(
         if len(process.inputs) < 2:
             continue
         incoming = [
-            edge for edge in graph.incoming_edges(node_id) if not _is_control_edge(edge)
+            edge for edge in graph.incoming_edges(node_id) if _is_path_edge(graph, edge)
         ]
         start_sources = {edge.source for edge in incoming if edge.source in starts}
         if len(start_sources) >= 2:
@@ -1079,7 +1079,7 @@ def _is_auxiliary_sofl_start(graph: CDFDGraph, node_id: str, starts: set[str]) -
         return False
 
     outgoing = [
-        edge for edge in graph.outgoing_edges(node_id) if not _is_control_edge(edge)
+        edge for edge in graph.outgoing_edges(node_id) if _is_path_edge(graph, edge)
     ]
     if not outgoing:
         return False
@@ -1088,7 +1088,7 @@ def _is_auxiliary_sofl_start(graph: CDFDGraph, node_id: str, starts: set[str]) -
         target_incoming = [
             incoming
             for incoming in graph.incoming_edges(edge.target)
-            if not _is_control_edge(incoming)
+            if _is_path_edge(graph, incoming)
         ]
         if any(incoming.source not in starts for incoming in target_incoming):
             return True
@@ -1143,6 +1143,13 @@ def _node_outputs(graph: CDFDGraph, node_id: str) -> list[str]:
 
 def _is_control_edge(edge: Edge) -> bool:
     return edge.kind.lower().replace("_", "-") == "control"
+
+
+def _is_path_edge(graph: CDFDGraph, edge: Edge) -> bool:
+    if not _is_control_edge(edge):
+        return True
+    source = graph.nodes.get(edge.source)
+    return bool(source and source.type.lower().endswith("_condition"))
 
 
 def _edge_conditions(edge: Edge) -> list[str]:

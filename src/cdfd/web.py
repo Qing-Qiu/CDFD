@@ -109,10 +109,11 @@ def analyze(payload: AnalyzeRequest) -> dict[str, object]:
         "consistency_issues": [model_dump(issue) for issue in consistency_issues],
         "cycles": cycles,
         "flow_decomposition": flow_decomposition_to_dict(flow_decomposition),
-        "paths": paths_to_dicts(paths),
+        "paths": paths_to_dicts(paths, graph=graph),
         "concurrent_paths": concurrent_paths_to_dicts(
             concurrent_paths,
             tree_lines=concurrent_tree_lines,
+            graph=graph,
         ),
         "functional_scenarios": scenarios_to_dicts(functional_scenarios),
         "path_relations": [

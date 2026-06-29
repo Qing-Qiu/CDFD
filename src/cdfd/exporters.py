@@ -8,7 +8,17 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from io import StringIO
 
-from cdfd.models import CDFDGraph, CDFDProject, ConcurrentPathResult, FunctionalScenario, PathRelation, PathResult, model_dump
+from cdfd.concurrent_paths import format_notation, format_tree_lines, normalize_concurrent_tree
+from cdfd.models import (
+    CDFDGraph,
+    CDFDProject,
+    ConcurrentPathNode,
+    ConcurrentPathResult,
+    FunctionalScenario,
+    PathRelation,
+    PathResult,
+    model_dump,
+)
 
 NODE_WIDTH = 150
 NODE_HEIGHT = 48
@@ -30,6 +40,7 @@ class LayoutContext:
     sizes: dict[str, tuple[int, int]]
     source_layout: bool = False
     shift: tuple[int, int] = (0, 0)
+    source_points: tuple[tuple[int, int], ...] = ()
 
 
 def export_paths(paths: list[PathResult], output_format: str) -> str:
@@ -76,18 +87,28 @@ def export_analysis(
     raise ValueError(f"Unsupported output format: {output_format}")
 
 
-def paths_to_dicts(paths: list[PathResult]) -> list[dict[str, object]]:
-    return [_path_to_dict(path, index) for index, path in enumerate(paths, start=1)]
+def paths_to_dicts(paths: list[PathResult], graph: CDFDGraph | None = None) -> list[dict[str, object]]:
+    return [_path_to_dict(path, index, graph=graph) for index, path in enumerate(paths, start=1)]
 
 
 def concurrent_paths_to_dicts(
     concurrent_paths: list[ConcurrentPathResult],
     *,
     tree_lines: list[list[str]] | None = None,
+    graph: CDFDGraph | None = None,
 ) -> list[dict[str, object]]:
     items: list[dict[str, object]] = []
     for index, concurrent in enumerate(concurrent_paths, start=1):
-        lines = tree_lines[index - 1] if tree_lines and index - 1 < len(tree_lines) else []
+        display_root = _display_concurrent_root(concurrent, graph)
+        if display_root is not None:
+            notation = format_notation(display_root)
+            lines = format_tree_lines(display_root, title=f"Concurrent Path {index}")
+            display_io = _display_edge_io(concurrent.edges, graph)
+            notation = _append_io_summary(notation, display_io["inputs"], display_io["outputs"])
+        else:
+            notation = concurrent.notation or ""
+            lines = tree_lines[index - 1] if tree_lines and index - 1 < len(tree_lines) else []
+            display_io = {"inputs": [], "outputs": []}
         raw = model_dump(concurrent)
         items.append(
             {
@@ -95,6 +116,9 @@ def concurrent_paths_to_dicts(
                 "id": f"CP{index}",
                 "source": concurrent.nodes[0] if concurrent.nodes else None,
                 "sink": concurrent.nodes[-1] if concurrent.nodes else None,
+                "display_inputs": display_io["inputs"],
+                "display_outputs": display_io["outputs"],
+                "notation": notation,
                 "tree_lines": lines,
             }
         )
@@ -105,16 +129,192 @@ def scenarios_to_dicts(scenarios: list[FunctionalScenario]) -> list[dict[str, ob
     return [model_dump(scenario) for scenario in scenarios]
 
 
-def _path_to_dict(path: PathResult, index: int) -> dict[str, object]:
+def _path_to_dict(path: PathResult, index: int, *, graph: CDFDGraph | None = None) -> dict[str, object]:
     raw = model_dump(path)
     sink = path.sink or (path.nodes[-1] if path.nodes else None)
+    display = _display_path(path, graph)
     return {
         **raw,
         "id": f"P{index}",
         "source": path.nodes[0] if path.nodes else None,
         "sink": sink,
-        "route": _path_route(path),
+        "display_nodes": display["nodes"],
+        "display_inputs": display["inputs"],
+        "display_outputs": display["outputs"],
+        "route": display["route"],
     }
+
+
+def _display_path(path: PathResult, graph: CDFDGraph | None) -> dict[str, object]:
+    if graph is None or not _has_hidden_sofl_external_nodes(path.nodes, graph):
+        return {
+            "nodes": list(path.nodes),
+            "inputs": [],
+            "outputs": [],
+            "route": _path_route(path),
+        }
+
+    segments = _path_segments(path)
+    inputs: list[str] = []
+    outputs: list[str] = []
+    route = ""
+    current = ""
+    visible_nodes: list[str] = []
+
+    for source, target, data_items in segments:
+        source_hidden = _is_hidden_sofl_external_node(graph, source)
+        target_hidden = _is_hidden_sofl_external_node(graph, target)
+        if source_hidden and target_hidden:
+            inputs = _extend_unique(inputs, data_items)
+            continue
+        if source_hidden:
+            inputs = _extend_unique(inputs, data_items)
+            if not target_hidden:
+                visible_nodes = _append_unique(visible_nodes, target)
+                if not route:
+                    route = target
+                    current = target
+            continue
+        if target_hidden:
+            outputs = _extend_unique(outputs, data_items)
+            visible_nodes = _append_unique(visible_nodes, source)
+            if not route:
+                route = source
+                current = source
+            continue
+
+        visible_nodes = _append_unique(_append_unique(visible_nodes, source), target)
+        if not route:
+            route = source
+            current = source
+        elif current != source:
+            route += f" | {source}"
+            current = source
+
+        data_label = ", ".join(data_items)
+        if data_label:
+            route += f" --[{data_label}]--> {target}"
+        else:
+            route += f" -> {target}"
+        current = target
+
+    if not route:
+        visible_nodes = [node for node in path.nodes if not _is_hidden_sofl_external_node(graph, node)]
+        route = " -> ".join(visible_nodes) if visible_nodes else _path_route(path)
+
+    route = _append_io_summary(route, inputs, outputs)
+
+    return {
+        "nodes": visible_nodes,
+        "inputs": inputs,
+        "outputs": outputs,
+        "route": route,
+    }
+
+
+def _path_segments(path: PathResult) -> list[tuple[str, str, list[str]]]:
+    if path.edge_sources and path.edge_targets:
+        return [
+            (source, target, list(data_items))
+            for source, target, data_items in zip(path.edge_sources, path.edge_targets, path.edge_data)
+        ]
+    segments: list[tuple[str, str, list[str]]] = []
+    for index, (source, target) in enumerate(zip(path.nodes, path.nodes[1:])):
+        data_items = [path.data[index]] if index < len(path.data) else []
+        segments.append((source, target, data_items))
+    return segments
+
+
+def _display_concurrent_root(
+    concurrent: ConcurrentPathResult,
+    graph: CDFDGraph | None,
+) -> ConcurrentPathNode | None:
+    if graph is None or not _has_hidden_sofl_external_nodes(concurrent.nodes, graph):
+        return None
+    root = _prune_hidden_sofl_nodes(concurrent.root, graph)
+    if root is None:
+        return None
+    return normalize_concurrent_tree(root)
+
+
+def _display_edge_io(edge_ids: list[str], graph: CDFDGraph | None) -> dict[str, list[str]]:
+    if graph is None:
+        return {"inputs": [], "outputs": []}
+
+    by_id = {edge.id: edge for edge in graph.edges}
+    inputs: list[str] = []
+    outputs: list[str] = []
+    for edge_id in edge_ids:
+        edge = by_id.get(edge_id) or by_id.get(edge_id.split(":")[-1])
+        if edge is None:
+            continue
+        source_hidden = _is_hidden_sofl_external_node(graph, edge.source)
+        target_hidden = _is_hidden_sofl_external_node(graph, edge.target)
+        if source_hidden and not target_hidden:
+            inputs = _extend_unique(inputs, edge.data)
+        elif target_hidden and not source_hidden:
+            outputs = _extend_unique(outputs, edge.data)
+    return {"inputs": inputs, "outputs": outputs}
+
+
+def _append_io_summary(route: str, inputs: list[str], outputs: list[str]) -> str:
+    summaries = []
+    if inputs:
+        summaries.append(f"inputs: {', '.join(inputs)}")
+    if outputs:
+        summaries.append(f"outputs: {', '.join(outputs)}")
+    if summaries:
+        return f"{route} | {' | '.join(summaries)}"
+    return route
+
+
+def _prune_hidden_sofl_nodes(
+    node: ConcurrentPathNode,
+    graph: CDFDGraph,
+) -> ConcurrentPathNode | None:
+    if node.kind == "node":
+        if node.node_id and _is_hidden_sofl_external_node(graph, node.node_id):
+            return None
+        return node
+
+    children = [
+        child
+        for child in (_prune_hidden_sofl_nodes(child, graph) for child in node.children)
+        if child is not None
+    ]
+    if not children:
+        return None
+    if len(children) == 1:
+        return children[0]
+    return ConcurrentPathNode(kind=node.kind, children=children, label=node.label)
+
+
+def _has_hidden_sofl_external_nodes(nodes: list[str], graph: CDFDGraph) -> bool:
+    return any(_is_hidden_sofl_external_node(graph, node_id) for node_id in nodes)
+
+
+def _is_hidden_sofl_external_node(graph: CDFDGraph, node_id: str) -> bool:
+    node = graph.nodes.get(node_id)
+    if node is None:
+        return False
+    return _is_inferred_sofl_external(node)
+
+
+def _append_unique(values: list[str], item: str) -> list[str]:
+    if item not in values:
+        return [*values, item]
+    return values
+
+
+def _extend_unique(values: list[str], additions: list[str]) -> list[str]:
+    result = list(values)
+    seen = set(result)
+    for item in additions:
+        if item in seen:
+            continue
+        result.append(item)
+        seen.add(item)
+    return result
 
 
 def flow_decomposition_to_dict(result) -> dict[str, object]:
@@ -157,24 +357,24 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
     positions = layout.positions
     sizes = layout.sizes
 
-    width = (
-        max(
-            (x + sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))[0] for node_id, (x, _) in positions.items()),
-            default=LEFT_PAD,
-        )
-        + LEFT_PAD
+    max_x = max(
+        (x + sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))[0] for node_id, (x, _) in positions.items()),
+        default=LEFT_PAD,
     )
-    height = (
-        max(
-            (y + sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))[1] for node_id, (_, y) in positions.items()),
-            default=TOP_PAD,
-        )
-        + TOP_PAD
+    max_y = max(
+        (y + sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))[1] for node_id, (_, y) in positions.items()),
+        default=TOP_PAD,
     )
+    if layout.source_points:
+        max_x = max(max_x, max(x for x, _ in layout.source_points))
+        max_y = max(max_y, max(y for _, y in layout.source_points))
+    svg_width = max_x + LEFT_PAD
+    svg_height = max_y + TOP_PAD
     edge_offsets = _edge_offsets(graph)
+    background = "#f2f2f2" if layout.source_layout else "#ffffff"
 
     parts = [
-        f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="CDFD graph" xmlns="http://www.w3.org/2000/svg">',
+        f'<svg viewBox="0 0 {svg_width} {svg_height}" role="img" aria-label="CDFD graph" xmlns="http://www.w3.org/2000/svg">',
         "<defs>",
         '<pattern id="sofl-grid" width="10" height="10" patternUnits="userSpaceOnUse">',
         '<circle cx="1" cy="1" r="0.65" fill="#c7cdd3" />',
@@ -183,9 +383,10 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         '<path d="M0,0 L0,6 L8,3 z" fill="#111827" />',
         "</marker>",
         "</defs>",
-        f'<rect width="{width}" height="{height}" fill="#ffffff" />',
-        f'<rect width="{width}" height="{height}" fill="url(#sofl-grid)" />',
+        f'<rect width="{svg_width}" height="{svg_height}" fill="{background}" />',
     ]
+    if not layout.source_layout:
+        parts.append(f'<rect width="{svg_width}" height="{svg_height}" fill="url(#sofl-grid)" />')
 
     for node_id, node in graph.nodes.items():
         if _should_skip_rendered_node(layout, node):
@@ -193,8 +394,8 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         if not _draw_node_before_edges(node):
             continue
         x, y = positions[node_id]
-        width, height = sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))
-        parts.extend(_render_sofl_node(graph, node_id, node, x, y, width, height))
+        node_width, node_height = sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))
+        parts.extend(_render_sofl_node(graph, node_id, node, x, y, node_width, node_height))
 
     for edge_index, edge in enumerate(graph.edges, start=1):
         if edge.source not in positions or edge.target not in positions:
@@ -202,7 +403,7 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         x1, y1, x2, y2 = _edge_endpoints(edge, layout, edge_offsets.get(edge.id, 0))
         label = _edge_label(graph, edge)
         edge_class = "control-flow" if edge.kind == "control" else "data-flow"
-        dash = ' stroke-dasharray="1 5" stroke-linecap="round"' if edge.kind == "control" else ""
+        dash = ' stroke-dasharray="1 5" stroke-linecap="round"' if edge.kind == "control" and not layout.source_layout else ""
         if layout.source_layout:
             path_d = _source_layout_path(x1, y1, x2, y2)
         elif edge.kind == "control":
@@ -229,8 +430,8 @@ def render_svg(graph: CDFDGraph, paths: list[PathResult] | None = None, graph_na
         if _draw_node_before_edges(node):
             continue
         x, y = positions[node_id]
-        width, height = sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))
-        parts.extend(_render_sofl_node(graph, node_id, node, x, y, width, height))
+        node_width, node_height = sizes.get(node_id, (NODE_WIDTH, NODE_HEIGHT))
+        parts.extend(_render_sofl_node(graph, node_id, node, x, y, node_width, node_height))
 
     parts.append("</svg>")
     return "".join(parts)
@@ -258,8 +459,8 @@ def _render_sofl_node(graph: CDFDGraph, node_id: str, node, x: int, y: int, widt
             f'fill="{fill}" stroke="{stroke}" />',
             f'<line class="sofl-process-band" x1="{x}" y1="{top}" x2="{x + width}" y2="{top}" stroke="{stroke}" />',
             f'<line class="sofl-process-band" x1="{x}" y1="{bottom}" x2="{x + width}" y2="{bottom}" stroke="{stroke}" />',
-            f'<line class="sofl-process-port-rail" x1="{left}" y1="{top}" x2="{left}" y2="{bottom}" stroke="{stroke}" />',
-            f'<line class="sofl-process-port-rail" x1="{right}" y1="{top}" x2="{right}" y2="{bottom}" stroke="{stroke}" />',
+            f'<line class="sofl-process-port-rail" x1="{left}" y1="{y}" x2="{left}" y2="{y + height}" stroke="{stroke}" />',
+            f'<line class="sofl-process-port-rail" x1="{right}" y1="{y}" x2="{right}" y2="{y + height}" stroke="{stroke}" />',
         ]
         parts.extend(
             _process_port_dividers(
@@ -409,15 +610,75 @@ def _svg_text(
     *,
     preferred_size: int = 13,
 ) -> str:
-    available_chars = max(1, int((width - 12) / max(preferred_size * 0.58, 1)))
+    raw_label = html.unescape(escaped_label)
+    available_width = max(8.0, width - 12)
+    available_height = max(8.0, height - 6)
     font_size = preferred_size
-    if len(html.unescape(escaped_label)) > available_chars:
-        font_size = max(9, int(preferred_size * available_chars / len(html.unescape(escaped_label))))
-    text_y = center_y + font_size * 0.34
+    max_lines = max(1, int(available_height / max(font_size * 1.18, 1)))
+    max_lines = min(max_lines, 3)
+    lines = _wrap_svg_text(raw_label, available_width / font_size, max_lines)
+    longest_units = max((_text_units(line) for line in lines), default=1.0)
+    if longest_units * font_size > available_width:
+        font_size = max(8, int(available_width / max(longest_units, 1.0)))
+        max_lines = max(1, int(available_height / max(font_size * 1.18, 1)))
+        max_lines = min(max_lines, 3)
+        lines = _wrap_svg_text(raw_label, available_width / font_size, max_lines)
+
+    line_height = font_size * 1.18
+    first_y = center_y - ((len(lines) - 1) * line_height / 2) + font_size * 0.34
+    tspans = [
+        f'<tspan x="{center_x:.1f}" y="{first_y + index * line_height:.1f}">{html.escape(line)}</tspan>'
+        for index, line in enumerate(lines)
+    ]
     return (
-        f'<text x="{center_x:.1f}" y="{text_y:.1f}" text-anchor="middle" font-size="{font_size}" '
-        f'font-family="Arial, sans-serif" fill="#111827">{escaped_label}</text>'
+        f'<text text-anchor="middle" font-size="{font_size}" '
+        f'font-family="Arial, sans-serif" fill="#111827">{"".join(tspans)}</text>'
     )
+
+
+def _wrap_svg_text(label: str, max_units: float, max_lines: int) -> list[str]:
+    text = label.strip()
+    if not text:
+        return [""]
+
+    lines: list[str] = []
+    current = ""
+    current_units = 0.0
+    for char in text:
+        char_units = _text_units(char)
+        if current and current_units + char_units > max_units:
+            lines.append(current)
+            current = char
+            current_units = char_units
+        else:
+            current += char
+            current_units += char_units
+    if current:
+        lines.append(current)
+
+    if len(lines) <= max_lines:
+        return lines
+    kept = lines[: max_lines - 1]
+    kept.append("".join(lines[max_lines - 1 :]))
+    return kept
+
+
+def _text_units(text: str) -> float:
+    units = 0.0
+    for char in text:
+        code = ord(char)
+        if (
+            0x4E00 <= code <= 0x9FFF
+            or 0x3400 <= code <= 0x4DBF
+            or 0x3040 <= code <= 0x30FF
+            or 0xAC00 <= code <= 0xD7AF
+        ):
+            units += 1.0
+        elif char.isspace():
+            units += 0.35
+        else:
+            units += 0.58
+    return units
 
 
 def _process_port_dividers(
@@ -651,12 +912,23 @@ def _source_layout_context(graph: CDFDGraph) -> LayoutContext | None:
         return None
 
     positions = dict(raw_positions)
+    raw_edge_points = _source_edge_points(graph)
     _place_unpositioned_nodes(graph, positions, sizes)
-    positions, shift = _normalize_source_layout(positions)
+    positions, shift = _normalize_source_layout(positions, raw_edge_points)
+    source_points = tuple(
+        (int(x + shift[0]), int(y + shift[1]))
+        for x, y in raw_edge_points
+    )
     for node_id, node in graph.nodes.items():
         sizes.setdefault(node_id, _default_node_size(node.type))
 
-    return LayoutContext(positions=positions, sizes=sizes, source_layout=True, shift=shift)
+    return LayoutContext(
+        positions=positions,
+        sizes=sizes,
+        source_layout=True,
+        shift=shift,
+        source_points=source_points,
+    )
 
 
 def _layout_positions(graph: CDFDGraph) -> dict[str, tuple[int, int]]:
@@ -786,11 +1058,19 @@ def _shift_into_view_with_delta(positions: dict[str, tuple[int, int]]) -> tuple[
     return {node_id: (int(x + dx), int(y + dy)) for node_id, (x, y) in positions.items()}, (int(dx), int(dy))
 
 
-def _normalize_source_layout(positions: dict[str, tuple[int, int]]) -> tuple[dict[str, tuple[int, int]], tuple[int, int]]:
+def _normalize_source_layout(
+    positions: dict[str, tuple[int, int]],
+    points: list[tuple[int, int]] | None = None,
+) -> tuple[dict[str, tuple[int, int]], tuple[int, int]]:
     if not positions:
         return positions, (0, 0)
-    min_x = min(x for x, _ in positions.values())
-    min_y = min(y for _, y in positions.values())
+    points = points or []
+    all_x = [x for x, _ in positions.values()]
+    all_y = [y for _, y in positions.values()]
+    all_x.extend(x for x, _ in points)
+    all_y.extend(y for _, y in points)
+    min_x = min(all_x)
+    min_y = min(all_y)
     dx = int(LEFT_PAD - min_x)
     dy = int(TOP_PAD / 2 - min_y)
     if not dx and not dy:
@@ -886,6 +1166,17 @@ def _raw_edge_points(edge) -> tuple[int, int, int, int] | None:
     if None in (from_x, from_y, to_x, to_y):
         return None
     return int(from_x), int(from_y), int(to_x), int(to_y)
+
+
+def _source_edge_points(graph: CDFDGraph) -> list[tuple[int, int]]:
+    points: list[tuple[int, int]] = []
+    for edge in graph.edges:
+        raw = _raw_edge_points(edge)
+        if raw is None:
+            continue
+        x1, y1, x2, y2 = raw
+        points.extend([(x1, y1), (x2, y2)])
+    return points
 
 
 def _source_layout_path(x1: int, y1: int, x2: int, y2: int) -> str:

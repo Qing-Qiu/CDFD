@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 
-from cdfd.exporters import export_analysis, export_paths, render_svg
+from cdfd.exporters import concurrent_paths_to_dicts, export_analysis, export_paths, paths_to_dicts, render_svg
 from cdfd.models import PathRelation
 from cdfd.parsers import parse_cdfd, parse_project
 from cdfd.path_finder import PathFindingOptions, find_concurrent_paths, find_paths
@@ -149,6 +149,25 @@ def test_render_svg_contains_nodes_and_edges():
     assert "arrow-highlight" not in svg
 
 
+def test_sofl_path_display_hides_inferred_external_endpoint_nodes():
+    project = parse_project((ROOT / "tmpCode" / "multi-input.cdfd").read_text(encoding="utf-8"), "cdfd")
+    graph = project.entry()
+    path_items = paths_to_dicts(find_paths(graph, project=project), graph=graph)
+    concurrent_items = concurrent_paths_to_dicts(
+        find_concurrent_paths(graph, PathFindingOptions(), project=project),
+        graph=graph,
+    )
+
+    assert path_items[0]["route"] == "process0 --[output1]--> process1 | inputs: input1 | outputs: output2"
+    assert path_items[1]["route"] == "process0 --[output1]--> process1 | inputs: input2 | outputs: output2"
+    assert path_items[0]["display_nodes"] == ["process0", "process1"]
+    assert "IN_input1" not in path_items[0]["route"]
+    assert "OUT_output2" not in path_items[0]["route"]
+    assert concurrent_items[0]["notation"] == "process0 -> process1 | inputs: input1 | outputs: output2"
+    assert "IN_input1" not in "\n".join(concurrent_items[0]["tree_lines"])
+    assert "OUT_output2" not in "\n".join(concurrent_items[0]["tree_lines"])
+
+
 def test_render_svg_draws_control_edges_as_dashed():
     graph = parse_cdfd(
         """
@@ -279,6 +298,8 @@ def test_render_svg_uses_sofl_saved_component_layout():
     assert 'M477,180 L465,265' in svg
     assert 'class="control-flow" data-edge-id="control_data_flow_1" d="M232,296 L375,294"' in svg
     assert 'class="control-flow" data-edge-id="control_data_flow_2" d="M235,340 L375,336"' in svg
+    assert 'fill="url(#sofl-grid)"' not in svg
+    assert 'stroke-dasharray="1 5"' not in svg
     assert "#b45309" not in svg
 
 
