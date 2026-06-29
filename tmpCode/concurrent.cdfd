@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CDFD module="current">
+  <componentList>
+    <process name="process0" inputPorts="1" outputPorts="1" x="313" y="440" width="130" height="86" shapeIndex="0" />
+    <process name="process1" inputPorts="1" outputPorts="1" x="647" y="269" width="138" height="77" shapeIndex="1" />
+    <process name="process2" inputPorts="1" outputPorts="1" x="648" y="441" width="135" height="84" shapeIndex="2" />
+    <process name="process3" inputPorts="1" outputPorts="1" x="650" y="606" width="135" height="81" shapeIndex="3" />
+    <separating x="521" y="458" width="50" height="50" shapeIndex="4" />
+    <merging x="924" y="459" width="50" height="50" shapeIndex="5" />
+  </componentList>
+  <connectionList>
+    <activeDataFlow name="input1" type="" fromX="248" fromY="482" toX="313" toY="482">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="process0" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+    </activeDataFlow>
+    <activeDataFlow name="output1" type="" fromX="443" fromY="482" toX="521" toY="483">
+      <from belongToName="process0" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+      <to belongToName="" belongToType="Separating" belongToConnector="0" shapeIndex="4" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="571" fromY="483" toX="647" toY="306">
+      <from belongToName="" belongToType="Separating" belongToConnector="1" shapeIndex="4" />
+      <to belongToName="process1" belongToType="Process" belongToConnector="0" shapeIndex="1" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="571" fromY="483" toX="648" toY="482">
+      <from belongToName="" belongToType="Separating" belongToConnector="1" shapeIndex="4" />
+      <to belongToName="process2" belongToType="Process" belongToConnector="0" shapeIndex="2" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="571" fromY="483" toX="650" toY="645">
+      <from belongToName="" belongToType="Separating" belongToConnector="1" shapeIndex="4" />
+      <to belongToName="process3" belongToType="Process" belongToConnector="0" shapeIndex="3" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="785" fromY="306" toX="924" toY="484">
+      <from belongToName="process1" belongToType="Process" belongToConnector="0" shapeIndex="1" />
+      <to belongToName="" belongToType="Merging" belongToConnector="1" shapeIndex="5" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="783" fromY="482" toX="924" toY="484">
+      <from belongToName="process2" belongToType="Process" belongToConnector="0" shapeIndex="2" />
+      <to belongToName="" belongToType="Merging" belongToConnector="1" shapeIndex="5" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="785" fromY="645" toX="924" toY="484">
+      <from belongToName="process3" belongToType="Process" belongToConnector="0" shapeIndex="3" />
+      <to belongToName="" belongToType="Merging" belongToConnector="1" shapeIndex="5" />
+    </activeDataFlow>
+    <activeDataFlow name="output2" type="" fromX="974" fromY="484" toX="1060" toY="484">
+      <from belongToName="" belongToType="Merging" belongToConnector="0" shapeIndex="5" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+  </connectionList>
+</CDFD>

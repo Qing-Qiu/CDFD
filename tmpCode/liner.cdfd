@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CDFD module="liner">
+  <componentList>
+    <process name="process0" inputPorts="1" outputPorts="1" x="424" y="438" width="150" height="100" shapeIndex="0" />
+    <process name="process1" inputPorts="1" outputPorts="1" x="668" y="437" width="150" height="100" shapeIndex="1" />
+  </componentList>
+  <connectionList>
+    <activeDataFlow name="input1" type="" fromX="331" fromY="488" toX="424" toY="487">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="process0" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+    </activeDataFlow>
+    <activeDataFlow name="output1" type="" fromX="574" fromY="487" toX="668" toY="486">
+      <from belongToName="process0" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+      <to belongToName="process1" belongToType="Process" belongToConnector="0" shapeIndex="1" />
+    </activeDataFlow>
+    <activeDataFlow name="output2" type="" fromX="818" fromY="486" toX="910" toY="485">
+      <from belongToName="process1" belongToType="Process" belongToConnector="0" shapeIndex="1" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+  </connectionList>
+</CDFD>

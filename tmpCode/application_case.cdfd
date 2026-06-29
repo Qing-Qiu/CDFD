@@ -1,0 +1,107 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CDFD module="xuexitong">
+  <componentList>
+    <process name="P1:用户登录认证" inputPorts="2" outputPorts="1" x="363" y="304" width="133" height="94" shapeIndex="0" />
+    <dataStore name="D1:user_db" no="" x="423" y="193" width="115" height="20" shapeIndex="1" />
+    <singleCondition condition="C1: 登录是否成功？" x="590" y="309" width="166" height="82" shapeIndex="2" />
+    <process name="P2:返回登录失败信息" inputPorts="1" outputPorts="1" x="755" y="460" width="132" height="77" shapeIndex="3" />
+    <process name="P3:更新登录信息" inputPorts="1" outputPorts="1" x="735" y="184" width="144" height="55" shapeIndex="4" />
+    <process name="P4:编译代码" inputPorts="1" outputPorts="1" x="1013" y="275" width="123" height="71" shapeIndex="5" />
+    <singleCondition condition="C2:是否编译成功" x="1197" y="340" width="155" height="84" shapeIndex="6" />
+    <process name="P5:生成错误结果" inputPorts="1" outputPorts="1" x="1304" y="484" width="143" height="65" shapeIndex="7" />
+    <dataStore name="D2:submit_db" no="" x="1551" y="505" width="147" height="25" shapeIndex="8" />
+    <separating x="1381" y="182" width="37" height="50" shapeIndex="9" />
+    <process name="P6:运行测试组1" inputPorts="1" outputPorts="1" x="1490" y="64" width="140" height="50" shapeIndex="10" />
+    <process name="P7:运行测试组2" inputPorts="1" outputPorts="1" x="1492" y="171" width="137" height="51" shapeIndex="11" />
+    <process name="P8:运行测试组3" inputPorts="1" outputPorts="1" x="1493" y="272" width="137" height="50" shapeIndex="12" />
+    <process name="P9:汇总判题结果" inputPorts="1" outputPorts="1" x="1749" y="148" width="150" height="83" shapeIndex="13" />
+    <dataStore name="D3:testSample_db" no="" x="1286" y="6" width="157" height="20" shapeIndex="14" />
+    <dataStore name="D2:submit_db" no="" x="2005" y="179" width="135" height="23" shapeIndex="15" />
+  </componentList>
+  <connectionList>
+    <activeDataFlow name="loginResult" type="" fromX="496" fromY="350" toX="590" toY="350">
+      <from belongToName="P1:用户登录认证" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+      <to belongToName="C1: 登录是否成功？" belongToType="SingleCondition" belongToConnector="0" shapeIndex="2" />
+    </activeDataFlow>
+    <dataFlow fromX="480" fromY="213" toX="429" toY="304">
+      <from belongToName="D1:user_db" no="" belongToType="DataStore" belongToConnector="Bottom" connectorIndex="0" shapeIndex="1" />
+      <to belongToName="P1:用户登录认证" no="" belongToType="ProcessTopBottom" belongToConnector="Top" connectorIndex="1" shapeIndex="0" />
+    </dataFlow>
+    <activeDataFlow name="account" type="" fromX="879" fromY="210" toX="1013" toY="309">
+      <from belongToName="P3:更新登录信息" belongToType="Process" belongToConnector="0" shapeIndex="4" />
+      <to belongToName="P4:编译代码" belongToType="Process" belongToConnector="0" shapeIndex="5" />
+    </activeDataFlow>
+    <activeDataFlow name="submissionRequest" type="" fromX="849" fromY="314" toX="1017" toY="311">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="compileResult" type="" fromX="1136" fromY="309" toX="1197" toY="382">
+      <from belongToName="P4:编译代码" belongToType="Process" belongToConnector="0" shapeIndex="5" />
+      <to belongToName="C2:是否编译成功" belongToType="SingleCondition" belongToConnector="0" shapeIndex="6" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="1274" fromY="423" toX="1304" toY="515">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="P5:生成错误结果" belongToType="Process" belongToConnector="0" shapeIndex="7" />
+    </activeDataFlow>
+    <activeDataFlow name="judgeResult" type="" fromX="1447" fromY="515" toX="1547" toY="517">
+      <from belongToName="P5:生成错误结果" belongToType="Process" belongToConnector="0" shapeIndex="7" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="1273" fromY="340" toX="1381" toY="207">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="" belongToType="Separating" belongToConnector="0" shapeIndex="9" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="1418" fromY="207" toX="1490" toY="88">
+      <from belongToName="" belongToType="Separating" belongToConnector="1" shapeIndex="9" />
+      <to belongToName="P6:运行测试组1" belongToType="Process" belongToConnector="0" shapeIndex="10" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="1418" fromY="207" toX="1492" toY="195">
+      <from belongToName="" belongToType="Separating" belongToConnector="1" shapeIndex="9" />
+      <to belongToName="P7:运行测试组2" belongToType="Process" belongToConnector="0" shapeIndex="11" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="1418" fromY="207" toX="1493" toY="296">
+      <from belongToName="" belongToType="Separating" belongToConnector="1" shapeIndex="9" />
+      <to belongToName="P8:运行测试组3" belongToType="Process" belongToConnector="0" shapeIndex="12" />
+    </activeDataFlow>
+    <activeDataFlow name="Result1" type="" fromX="1630" fromY="88" toX="1749" toY="188">
+      <from belongToName="P6:运行测试组1" belongToType="Process" belongToConnector="0" shapeIndex="10" />
+      <to belongToName="P9:汇总判题结果" belongToType="Process" belongToConnector="0" shapeIndex="13" />
+    </activeDataFlow>
+    <activeDataFlow name="Result2" type="" fromX="1629" fromY="195" toX="1749" toY="195">
+      <from belongToName="P7:运行测试组2" belongToType="Process" belongToConnector="0" shapeIndex="11" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="Result3" type="" fromX="1630" fromY="296" toX="1748" toY="202">
+      <from belongToName="P8:运行测试组3" belongToType="Process" belongToConnector="0" shapeIndex="12" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="1363" fromY="27" toX="1554" toY="63">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="finalResult" type="" fromX="1899" fromY="188" toX="2007" toY="189">
+      <from belongToName="P9:汇总判题结果" belongToType="Process" belongToConnector="0" shapeIndex="13" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="token" type="" fromX="193" fromY="379" toX="362" toY="378">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="userAccount" type="" fromX="193" fromY="319" toX="363" toY="320">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="passWord" type="" fromX="193" fromY="342" toX="362" toY="343">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <controlDataFlow name="登录成功" fromX="674" fromY="309" toX="735" toY="210">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="P3:更新登录信息" belongToType="Process" belongToConnector="0" shapeIndex="4" />
+    </controlDataFlow>
+    <controlDataFlow name="登录失败" fromX="671" fromY="392" toX="755" toY="497">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="P2:返回登录失败信息" belongToType="Process" belongToConnector="0" shapeIndex="3" />
+    </controlDataFlow>
+  </connectionList>
+</CDFD>

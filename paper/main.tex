@@ -58,7 +58,7 @@ CDFD, SOFL, path generation, conditional branch, concurrent path, graph analysis
 
 \section{Introduction}
 
-A Conditional Data Flow Diagram (CDFD) is a graphical model for describing how data enters a software system, how it is transformed by processes, how conditions affect behavior, and how outputs are produced. In SOFL-style modeling, a CDFD is not only a drawing of connected components. It carries behavioral meaning: a process may require several input data items, an output may be produced only when a condition is satisfied, and several branches may be independent parts of the same execution.
+A Conditional Data Flow Diagram (CDFD) is a graphical model for describing how data enters a software system, how it is transformed by processes, how conditions affect behavior, and how outputs are produced. In SOFL-style modeling, a CDFD is not only a drawing of connected components~\cite{liu1998sofl,liu2013formal}. It carries behavioral meaning: a process may require several input data items, an output may be produced only when a condition is satisfied, and several branches may be independent parts of the same execution.
 
 The task studied in this paper is to design a tool that can generate all paths for a given CDFD. This task is important because paths are useful for understanding system behavior, checking whether a CDFD is complete, and deriving functional scenarios for testing. However, manual path tracing becomes unreliable when a CDFD contains conditions, multiple inputs, multiple outputs, data stores, and parallel branches.
 
@@ -74,7 +74,7 @@ This paper makes three contributions. First, it gives a clear definition of CDFD
 
 \subsection{Basic Elements of CDFD}
 
-A CDFD contains several kinds of elements. A process represents a transformation from input data to output data. A data flow represents data moving from one element to another. A control flow represents a condition or control information that affects whether some behavior can occur. A data store represents persistent data that can be read or updated. A condition represents a decision that selects one or more branches. A source node provides input to the system, and a sink node receives output from the system.
+A CDFD contains several kinds of elements. A process represents a transformation from input data to output data. A data flow represents data moving from one element to another. A control flow represents a condition or control information that affects whether some behavior can occur. A data store represents persistent data that can be read or updated. A condition represents a decision that selects one or more branches. A source node provides input to the system, and a sink node receives output from the system. These ideas are related to the data-flow modeling tradition in structured analysis~\cite{demarco2011structured,yourdon1989modern}, while CDFD adds SOFL-specific conditions, process specifications, and decomposition rules~\cite{liu2004formal}.
 
 Fig.~\ref{fig:cdfd-overview} shows a simple CDFD example. The figure is used here as a visual placeholder and can be replaced by a clearer diagram later.
 
@@ -93,7 +93,7 @@ An ordinary graph path is mainly a topological concept. It is valid when consecu
 
 First, CDFD edges have different roles. A data-flow edge can be a path segment, while a control-flow edge usually contributes a condition instead of becoming a normal segment. Second, CDFD nodes are not always activated merely because they are reachable. A process can execute only when its required input data or selected input port is available. Third, outgoing branches have semantic relations. Branches guarded by different conditions are alternatives, while branches produced together by one process may be concurrent. Fourth, incoming branches may have to be synchronized before a later process can execute.
 
-Thus, ordinary graph traversal only answers whether there is a connected route from one node to another. CDFD path generation must additionally decide whether the route is semantically executable and how its branch relations should be represented.
+Thus, ordinary graph traversal only answers whether there is a connected route from one node to another~\cite{cormen2022introduction}. CDFD path generation must additionally decide whether the route is semantically executable and how its branch relations should be represented.
 
 \subsection{Problem Statement}
 
@@ -188,7 +188,7 @@ If a process requires data from several upstream branches, the process can execu
 
 \subsection{Path Generation Procedure}
 
-The core algorithm generates paths by exploring execution states. A state records the active frontier, the activated nodes, the traversed edges, the available data, the collected conditions, and the structured expression built so far. A normal linear path is a special case in which the active frontier contains only one node. A concurrent path is represented by several active frontier nodes and by a \(Par\) expression.
+The core algorithm generates paths by exploring execution states, following the general idea of systematic graph search while adding CDFD-specific semantic checks~\cite{cormen2009}. A state records the active frontier, the activated nodes, the traversed edges, the available data, the collected conditions, and the structured expression built so far. A normal linear path is a special case in which the active frontier contains only one node. A concurrent path is represented by several active frontier nodes and by a \(Par\) expression.
 
 \begin{paperalgorithm}{Generate All CDFD Paths}
 \label{alg:generate-all}
@@ -345,7 +345,7 @@ Fig.~\ref{fig:conditional-branch} shows a conditional branch example.
 \begin{figure}[!htbp]
 \centering
 % Placeholder figure, replace later.
-\includegraphics[width=\columnwidth,height=0.20\textheight,keepaspectratio]{\detokenize{figures/conditional_branch_path.png}}
+\includegraphics[width=\columnwidth,height=0.20\textheight,keepaspectratio]{\detokenize{figures/condition_path.png}}
 \caption{Example of mutually exclusive conditional branches}
 \label{fig:conditional-branch}
 \end{figure}
@@ -592,7 +592,7 @@ Fig.~\ref{fig:application-case} reserves positions for a larger application-styl
 \centering
 \textbf{CDFD input}\\[-1mm]
 % Placeholder figure, replace later.
-\includegraphics[width=\columnwidth,height=0.13\textheight,keepaspectratio]{\detokenize{figures/case_fig_6.png}}\\[1mm]
+\includegraphics[width=\columnwidth,height=0.13\textheight,keepaspectratio]{\detokenize{figures/application_case.png}}\\[1mm]
 \textbf{Generated paths}\\[-1mm]
 % Placeholder figure, replace later.
 \includegraphics[width=\columnwidth,height=0.13\textheight,keepaspectratio]{\detokenize{figures/case_fig_7.png}}
@@ -627,5 +627,8 @@ Future work includes improving the visual editor, supporting richer scenario des
 This paper presented a tool for generating all paths for a given CDFD. The main idea is that CDFD path generation should be treated as a semantic graph problem rather than a simple graph traversal problem. A legal CDFD path must respect data availability, process ports, conditions, branch relations, and synchronization points.
 
 The paper defined CDFD paths using common notation, described generation rules for typical CDFD structures, and introduced a tool workflow for importing CDFD files, building a unified model, generating path results, and presenting them to users. By making path semantics explicit, the tool can help users understand complex CDFDs, check modeling consistency, and prepare functional scenarios for later testing work.
+
+\bibliographystyle{template/IEEEtran}
+\bibliography{references}
 
 \end{document}

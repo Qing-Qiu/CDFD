@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CDFD module="condition">
+  <componentList>
+    <process name="process0" inputPorts="1" outputPorts="1" x="477" y="415" width="150" height="100" shapeIndex="0" />
+    <singleCondition condition="check1" x="716" y="421" width="100" height="84" shapeIndex="1" />
+    <process name="process1" inputPorts="1" outputPorts="1" x="875" y="306" width="150" height="100" shapeIndex="2" />
+    <process name="process2" inputPorts="1" outputPorts="1" x="883" y="520" width="150" height="100" shapeIndex="3" />
+  </componentList>
+  <connectionList>
+    <activeDataFlow name="input1" type="" fromX="372" fromY="465" toX="477" toY="464">
+      <from belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+      <to belongToName="process0" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+    </activeDataFlow>
+    <activeDataFlow name="output1" type="" fromX="627" fromY="464" toX="716" toY="463">
+      <from belongToName="process0" belongToType="Process" belongToConnector="0" shapeIndex="0" />
+      <to belongToName="check1" belongToType="SingleCondition" belongToConnector="0" shapeIndex="1" />
+    </activeDataFlow>
+    <controlDataFlow name="Yes" fromX="816" fromY="463" toX="875" toY="355">
+      <from belongToName="check1" belongToType="SingleCondition" belongToConnector="0" shapeIndex="1" />
+      <to belongToName="process1" belongToType="Process" belongToConnector="0" shapeIndex="2" />
+    </controlDataFlow>
+    <controlDataFlow name="No" fromX="816" fromY="463" toX="883" toY="569">
+      <from belongToName="check1" belongToType="SingleCondition" belongToConnector="0" shapeIndex="1" />
+      <to belongToName="process2" belongToType="Process" belongToConnector="0" shapeIndex="3" />
+    </controlDataFlow>
+    <activeDataFlow name="" type="" fromX="1025" fromY="355" toX="1084" toY="356">
+      <from belongToName="process1" belongToType="Process" belongToConnector="0" shapeIndex="2" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+    <activeDataFlow name="" type="" fromX="1033" fromY="569" toX="1100" toY="568">
+      <from belongToName="process2" belongToType="Process" belongToConnector="0" shapeIndex="3" />
+      <to belongToName="" belongToType="outSide" belongToConnector="-1" shapeIndex="-1" />
+    </activeDataFlow>
+  </connectionList>
+</CDFD>
