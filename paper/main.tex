@@ -18,8 +18,9 @@
 \newcounter{algorithm}
 \renewcommand{\thealgorithm}{\arabic{algorithm}}
 
-\newenvironment{paperalgorithm}[1]{%
+\newenvironment{paperalgorithm}[2]{%
   \refstepcounter{algorithm}
+  \label{#2}
   \begin{figure}[!t]
   \centering
   \begin{minipage}{0.96\columnwidth}
@@ -45,7 +46,7 @@
 \IEEEauthorblockN{Lu Lu, Xue Cao, Yin Jiang, Sheng Li}
 \IEEEauthorblockA{
 The School of Computer Engineering and Science, Shanghai University\\
-Email: \{email1, email2, email3, lisheng226735@163.com\}}
+Email: \{3124619159@qq.com, 18136572867@163.com, jiangy03@shu.edu.cn, lisheng226735@163.com\}}
 }
 
 \begin{document}
@@ -78,13 +79,12 @@ This paper makes three contributions. First, it gives a clear definition of CDFD
 
 \subsection{Basic Elements of CDFD}
 
-A CDFD contains several kinds of elements. A process represents a transformation from input data to output data. A data flow represents data moving from one element to another. A control flow represents a condition or control information that affects whether some behavior can occur. A data store represents persistent data that can be read or updated. A condition represents a decision that selects one or more branches. A source node provides input to the system, and a sink node receives output from the system. These ideas are related to the data-flow modeling tradition in structured analysis~\cite{demarco2011structured,yourdon1989modern}, while CDFD adds SOFL-specific conditions, process specifications, and decomposition rules~\cite{liu2004formal}.
+A CDFD contains several kinds of elements. A process represents a transformation from input data to output data. A data flow represents data moving from one element to another. A control flow represents a condition or control information that affects whether some behavior can occur. A data store represents persistent data that can be read or updated. A condition represents a decision that selects one or more branches. A source node provides input to the system, and a sink node receives output from the system. These ideas are related to the data-flow modeling tradition in structured analysis~\cite{demarco2011structured,yourdon1989modern}, while CDFD adds SOFL-specific conditions, process specifications, and decomposition rules~\cite{liu2013formal}.
 
-Fig.~\ref{fig:cdfd-overview} shows a simple CDFD example. The figure is used here as a visual placeholder and can be replaced by a clearer diagram later.
+Fig.~\ref{fig:cdfd-overview} shows a simple CDFD example with external input data, data stores, processes, a condition node, and branch labels.
 
 \begin{figure}[!htbp]
 \centering
-% Placeholder figure, replace later.
 \includegraphics[width=\columnwidth,height=0.22\textheight,keepaspectratio]{\detokenize{figures/case_fig_1.png}}
 \caption{Example of CDFD elements and connections}
 \label{fig:cdfd-overview}
@@ -192,10 +192,9 @@ If a process requires data from several upstream branches, the process can execu
 
 \subsection{Path Generation Procedure}
 
-The core algorithm generates paths by exploring execution states, following the general idea of systematic graph search while adding CDFD-specific semantic checks~\cite{cormen2009}. A state records the active frontier, the activated nodes, the traversed edges, the available data, the collected conditions, and the structured expression built so far. A normal linear path is a special case in which the active frontier contains only one node. A concurrent path is represented by several active frontier nodes and by a \(Par\) expression.
+The core algorithm generates paths by exploring execution states, following the general idea of systematic graph search while adding CDFD-specific semantic checks~\cite{cormen2022introduction}. A state records the active frontier, the activated nodes, the traversed edges, the available data, the collected conditions, and the structured expression built so far. A normal linear path is a special case in which the active frontier contains only one node. A concurrent path is represented by several active frontier nodes and by a \(Par\) expression.
 
-\begin{paperalgorithm}{Generate All CDFD Paths}
-\label{alg:generate-all}
+\begin{paperalgorithm}{Generate All CDFD Paths}{alg:generate-all}
 \Require CDFD graph $G=(V,E)$, source set $S$, sink set $T$
 \Ensure set of legal CDFD paths $P$
 \State $P \gets \emptyset$; $Seen \gets \emptyset$
@@ -246,8 +245,7 @@ The core algorithm generates paths by exploring execution states, following the 
 
 In Algorithm~\ref{alg:generate-all}, \(A\) is the active frontier, \(X\) is the activated node set, \(N\) and \(E_p\) are the generated node and edge sequences, \(D\) is the available data set, \(C\) is the condition set, and \(R\) is the branch-relation expression. A state that cannot produce any successor is naturally discarded because no new state is added to \(Q\). Repeated states and repeated final paths are removed by \(Seen\) and \textsc{Deduplicate}.
 
-\begin{paperalgorithm}{Build Outgoing Cases}
-\label{alg:outgoing-cases}
+\begin{paperalgorithm}{Build Outgoing Cases}{alg:outgoing-cases}
 \Require graph $G$, node $v$, current condition set $C$
 \Ensure branch cases leaving $v$
 \State $F \gets$ data-flow and active-flow edges leaving $v$
@@ -270,8 +268,7 @@ In Algorithm~\ref{alg:generate-all}, \(A\) is the active frontier, \(X\) is the 
 
 Algorithm~\ref{alg:outgoing-cases} explains how the tool distinguishes ordinary branches, conditional branches, and multiple outputs. Control-flow edges are not returned as path edges. They only add conditions to the branch cases. If several output edges belong to the same output port or explicit parallel structure, they become one concurrent case. If their guards are mutually exclusive, they become separate choice cases.
 
-\begin{paperalgorithm}{Can Activate a Node}
-\label{alg:can-activate}
+\begin{paperalgorithm}{Can Activate a Node}{alg:can-activate}
 \Require node $u$, available data $D$, activated node set $X$
 \Ensure \textbf{true} if $u$ may execute
 \If{$u$ is not a process}
@@ -296,8 +293,7 @@ Algorithm~\ref{alg:outgoing-cases} explains how the tool distinguishes ordinary 
 
 Algorithm~\ref{alg:can-activate} is the semantic gate of the path generator. It prevents a reachable process from being entered before its input data is available. It also handles AND semantics inside one input port and OR semantics between alternative input ports. When explicit process information is missing, the tool falls back to the incoming data-flow structure.
 
-\begin{paperalgorithm}{Expand Decomposed Process}
-\label{alg:expand-decomposed}
+\begin{paperalgorithm}{Expand Decomposed Process}{alg:expand-decomposed}
 \Require process node $u$, available data $D$, condition set $C$
 \Ensure path segment replacing $u$
 \If{$u$ has no lower-level CDFD}
@@ -326,7 +322,6 @@ Fig.~\ref{fig:linear-path} shows a linear path example.
 
 \begin{figure}[!htbp]
 \centering
-% Placeholder figure, replace later.
 \includegraphics[width=\columnwidth,height=0.20\textheight,keepaspectratio]{\detokenize{figures/liner_path.png}}
 \caption{Example of a linear CDFD path}
 \label{fig:linear-path}
@@ -348,7 +343,6 @@ Fig.~\ref{fig:conditional-branch} shows a conditional branch example.
 
 \begin{figure}[!htbp]
 \centering
-% Placeholder figure, replace later.
 \includegraphics[width=\columnwidth,height=0.20\textheight,keepaspectratio]{\detokenize{figures/condition_path.png}}
 \caption{Example of mutually exclusive conditional branches}
 \label{fig:conditional-branch}
@@ -367,7 +361,6 @@ Fig.~\ref{fig:parallel-path} shows a concurrent path example.
 
 \begin{figure}[!htbp]
 \centering
-% Placeholder figure, replace later.
 \includegraphics[width=\columnwidth,height=0.20\textheight,keepaspectratio]{\detokenize{figures/concurrent_path.png}}
 \caption{Example of concurrent CDFD branches}
 \label{fig:parallel-path}
@@ -386,7 +379,6 @@ Fig.~\ref{fig:join-path} shows a join and multiple-input example.
 
 \begin{figure}[!htbp]
 \centering
-% Placeholder figure, replace later.
 \includegraphics[width=\columnwidth,height=0.20\textheight,keepaspectratio]{\detokenize{figures/multiple_input_path.png}}
 \caption{Example of a join with multiple required inputs}
 \label{fig:join-path}
@@ -401,7 +393,6 @@ Fig.~\ref{fig:multi-output} shows a multiple-output example.
 
 \begin{figure}[!htbp]
 \centering
-% Placeholder figure, replace later.
 \includegraphics[width=\columnwidth,height=0.20\textheight,keepaspectratio]{\detokenize{figures/multiple_output_path.png}}
 \caption{Example of multiple outputs from one process}
 \label{fig:multi-output}
